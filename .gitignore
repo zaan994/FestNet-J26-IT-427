@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+functions/.runtimeconfig.json
+
+# MobileApp (Flutter)
+MobileApp/.dart_tool/
+MobileApp/.packages
+MobileApp/build/
+MobileApp/*.dart_tool/
+MobileApp/pubspec.lock
+
+# Dashboard (Vite)
+Dashboard/.vite/
+Dashboard/node_modules/
+
+# Firmware (PlatformIO)
+Firmware/.pio/
+Firmware/.vscode/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+
+# Editor backup files
+*~
+*.bak
+
+# Local development
+*.local.ts
+*.local.dart
