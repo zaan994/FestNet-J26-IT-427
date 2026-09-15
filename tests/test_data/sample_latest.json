@@ -1,0 +1,28 @@
+{
+  "deviceId": "FESTNET_001",
+  "fwVersion": "0.1.0",
+  "online": true,
+  "ts": 1760000000000,
+  "serverTs": 1760000000150,
+  "uptimeMs": 523400,
+  "sosActive": false,
+  "sensors": { "oled": true, "mlx90614": true, "max30102": true, "mpu6050": true, "gps": true },
+  "pulseRaw": { "red": 98213, "ir": 112394 },
+  "vitals": {
+    "contact": true,
+    "bpm": 84,
+    "spo2": 98,
+    "hrv": { "rmssdMs": 38.5, "sdnnMs": 52.1 },
+    "stress": { "score": 34, "level": "low" }
+  },
+  "temperature": { "objectC": 34.2, "ambientC": 29.8, "coreEstC": 37.7 },
+  "motion": {
+    "ax": 0.12, "ay": -0.31, "az": 9.74,
+    "gx": 1.2, "gy": -0.4, "gz": 0.1,
+    "magG": 1.0, "state": "active", "stillSec": 0
+  },
+  "gps": { "fix": true, "latitude": 6.914700, "longitude": 79.972900, "satellites": 7, "speedMps": 0.4, "headingDeg": 182.0 },
+  "anomaly": { "active": false, "severity": "none", "types": [], "since": null, "latencyUs": null },
+  "battery": { "pct": null },
+  "net": { "transport": "wifi", "rssi": -61 }
+}

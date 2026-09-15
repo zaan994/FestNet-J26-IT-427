@@ -33,11 +33,24 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Secrets & credentials — NEVER commit
+Firmware/include/secrets.h
+serviceAccount*.json
+*-service-account*.json
+google-services.json
+GoogleService-Info.plist
+MobileApp/lib/firebase_options.dart
+MobileApp/firebase.json
+
 # Firebase
 .firebase/
 firebase-debug.log
 firestore-debug.log
+database-debug.log
+ui-debug.log
 functions/.runtimeconfig.json
+Backend/functions/lib/
+Backend/emulator-data/
 
 # MobileApp (Flutter)
 MobileApp/.dart_tool/

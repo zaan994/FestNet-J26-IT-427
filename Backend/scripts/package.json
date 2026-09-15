@@ -1,0 +1,19 @@
+{
+  "name": "festnet-scripts",
+  "description": "FestNet admin CLI and band simulator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "admin": "tsx src/admin.ts",
+    "simulate": "tsx src/band-simulator.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

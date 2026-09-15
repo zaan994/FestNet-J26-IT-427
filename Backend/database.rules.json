@@ -1,0 +1,79 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "festnet": {
+      "config": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser'"
+      },
+
+      "deviceAuth": {
+        "$authUid": {
+          ".read": "auth != null && (auth.uid === $authUid || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser')",
+          ".write": "auth != null && root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser'"
+        }
+      },
+
+      "deviceIndex": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser'"
+      },
+
+      "devices": {
+        ".read": "auth != null && (root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical')",
+        "$deviceId": {
+          ".read": "auth != null && (root.child('festnet/users/' + auth.uid + '/deviceId').val() === $deviceId || root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId)",
+          "latest": {
+            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
+          },
+          "history": {
+            ".indexOn": ["ts"],
+            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
+          },
+          "location": {
+            ".indexOn": ["ts"],
+            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
+          },
+          "meta": {
+            ".write": "auth != null && (root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser')",
+            "ownerUid": {
+              ".write": "auth != null && ((newData.val() === auth.uid && (!data.exists() || data.val() === auth.uid)) || (!newData.exists() && data.val() === auth.uid))"
+            }
+          }
+        }
+      },
+
+      "users": {
+        ".read": "auth != null && (root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical')",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && (auth.uid === $uid || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser')",
+          "role": {
+            ".validate": "newData.isString() && ((!data.exists() && newData.val() === 'participant') || newData.val() === data.val() || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser')"
+          }
+        }
+      },
+
+      "alerts": {
+        ".read": "auth != null && (root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical' || root.child('festnet/users/' + auth.uid + '/role').val() === 'volunteer')",
+        ".indexOn": ["status", "deviceId", "serverCreatedAt"],
+        "$alertId": {
+          ".write": "auth != null && (root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical' || (!data.exists() && newData.child('deviceId').val() === root.child('festnet/deviceAuth/' + auth.uid).val()))"
+        }
+      },
+
+      "events": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser'"
+      },
+
+      "wellness": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid === $uid || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical')",
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    }
+  }
+}
