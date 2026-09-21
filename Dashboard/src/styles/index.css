@@ -2,26 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * FestNet theme tokens (RGB triplets so Tailwind can apply opacity: bg-brand/10).
+ * Light = "Festival Day", dark = "Festival Night". The active theme is set on
+ * <html data-theme="..."> by index.html + src/hooks/useTheme.tsx.
+ */
 @layer base {
+  :root {
+    color-scheme: light;
+    --bg: 250 247 255; /* #FAF7FF lilac mist */
+    --surface: 255 255 255;
+    --surface-2: 243 238 255; /* #F3EEFF */
+    --line: 229 222 245; /* #E5DEF5 */
+    --ink: 27 16 51; /* #1B1033 deep plum */
+    --muted: 107 96 133; /* #6B6085 */
+    --brand: 124 58 237; /* #7C3AED violet */
+    --brand-2: 219 39 119; /* #DB2777 magenta */
+    --accent: 8 145 178; /* #0891B2 cyan */
+    --shadow: 76 29 149;
+    --chart-grid: 229 222 245;
+    --chart-axis: 107 96 133;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: 11 11 31; /* #0B0B1F midnight */
+    --surface: 21 21 46; /* #15152E */
+    --surface-2: 30 30 62; /* #1E1E3E */
+    --line: 46 46 86; /* #2E2E56 */
+    --ink: 244 244 255; /* #F4F4FF */
+    --muted: 156 163 199; /* #9CA3C7 */
+    --brand: 167 139 250; /* #A78BFA violet (lifted for dark) */
+    --brand-2: 236 72 153; /* #EC4899 magenta */
+    --accent: 34 211 238; /* #22D3EE cyan */
+    --shadow: 0 0 0;
+    --chart-grid: 46 46 86;
+    --chart-axis: 156 163 199;
+  }
+
+  html {
+    @apply bg-bg;
+  }
   body {
-    @apply bg-slate-100 text-slate-900 antialiased;
+    @apply bg-bg bg-stage-glow bg-fixed font-sans text-ink antialiased;
+  }
+  ::selection {
+    @apply bg-brand/30;
   }
 }
 
 @layer components {
   .card {
-    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+    @apply rounded-2xl border border-line bg-surface p-5 shadow-card;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    @apply btn bg-brand-gradient text-white shadow-glow hover:brightness-110;
   }
   .btn-ghost {
-    @apply btn text-slate-600 hover:bg-slate-100;
+    @apply btn text-muted hover:bg-surface-2 hover:text-ink;
+  }
+  .btn-outline {
+    @apply btn border border-line bg-surface text-ink hover:bg-surface-2;
   }
   .input {
-    @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-50;
+    @apply w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/70
+      outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20;
+  }
+  .gradient-text {
+    @apply bg-brand-gradient bg-clip-text text-transparent;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-muted;
   }
 }

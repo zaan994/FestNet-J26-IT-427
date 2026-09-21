@@ -41,7 +41,7 @@ One leg to `GPIO27`, the other to `GND`. The internal pull-up is enabled in firm
 
 ## Notes for C1 (health monitoring)
 
-- The MAX30102 needs **100 Hz** sampling for usable BPM / HRV. Reading it once per second (the
-  current sketch) only gives raw values.
-- The MLX90614 measures **skin** temperature (≈33–35 °C at the wrist). Core temperature must be
-  estimated (skin + calibrated offset) before applying the TAF 38 °C threshold.
+- The sketch samples the MAX30102 at **100 Hz** (400 sps, 4-sample averaging) and uploads every
+  sample in the `raw` chunks. The backend computes BPM, SpO2 and HRV from them.
+- The MLX90614 measures **skin** temperature (≈33–35 °C at the wrist). The backend estimates core
+  temperature (skin + calibrated offset) before applying the TAF 38 °C threshold.

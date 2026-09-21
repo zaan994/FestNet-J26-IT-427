@@ -1,4 +1,4 @@
-/// Helpers for parsing Firebase RTDB values, which arrive as Map<Object?, Object?>,
+/// Helpers for parsing Firebase RTDB values, which arrive as `Map<Object?, Object?>`,
 /// int or double interchangeably, and with fields missing.
 library;
 

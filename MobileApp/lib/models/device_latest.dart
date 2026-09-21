@@ -1,13 +1,13 @@
-import 'enums.dart';
 import 'json_utils.dart';
 
-/// devices/{deviceId}/latest — mirrors docs/database/schema.md.
-/// Every field not yet written by the current firmware is nullable.
+/// devices/{deviceId}/latest — raw readings written by the BAND every 2 s.
+/// Mirrors docs/database/schema.md. Computed vitals are in [DeviceHealth].
 class DeviceLatest {
   const DeviceLatest({
     required this.deviceId,
     required this.online,
     required this.sosActive,
+    required this.sosPressCount,
     required this.sensors,
     required this.pulseRaw,
     required this.temperature,
@@ -15,13 +15,13 @@ class DeviceLatest {
     required this.gps,
     this.fwVersion,
     this.ts,
-    this.vitals,
-    this.anomaly,
+    this.rssi,
   });
 
   final String deviceId;
   final bool online;
   final bool sosActive;
+  final int sosPressCount;
   final SensorStatus sensors;
   final PulseRaw pulseRaw;
   final TemperatureReading temperature;
@@ -29,8 +29,7 @@ class DeviceLatest {
   final GpsReading gps;
   final String? fwVersion;
   final DateTime? ts;
-  final Vitals? vitals; // C1
-  final AnomalyStatus? anomaly; // C1
+  final int? rssi;
 
   factory DeviceLatest.fromMap(Map<String, dynamic> m) {
     final tsMs = asInt(m['ts']);
@@ -38,6 +37,7 @@ class DeviceLatest {
       deviceId: asString(m['deviceId']) ?? '',
       online: asBool(m['online']),
       sosActive: asBool(m['sosActive']),
+      sosPressCount: asInt(m['sosPressCount']) ?? 0,
       sensors: SensorStatus.fromMap(asMap(m['sensors'])),
       pulseRaw: PulseRaw.fromMap(asMap(m['pulseRaw'])),
       temperature: TemperatureReading.fromMap(asMap(m['temperature'])),
@@ -45,8 +45,7 @@ class DeviceLatest {
       gps: GpsReading.fromMap(asMap(m['gps'])),
       fwVersion: asString(m['fwVersion']),
       ts: tsMs == null ? null : DateTime.fromMillisecondsSinceEpoch(tsMs),
-      vitals: m['vitals'] == null ? null : Vitals.fromMap(asMap(m['vitals'])),
-      anomaly: m['anomaly'] == null ? null : AnomalyStatus.fromMap(asMap(m['anomaly'])),
+      rssi: asInt(asMap(m['net'])['rssi']),
     );
   }
 }
@@ -79,37 +78,20 @@ class PulseRaw {
 }
 
 class TemperatureReading {
-  const TemperatureReading({this.objectC, this.ambientC, this.coreEstC});
+  const TemperatureReading({this.objectC, this.ambientC});
 
-  final double? objectC;
+  final double? objectC; // skin (MLX90614 object)
   final double? ambientC;
-  final double? coreEstC; // C1
 
-  factory TemperatureReading.fromMap(Map<String, dynamic> m) => TemperatureReading(
-        objectC: asDouble(m['objectC']),
-        ambientC: asDouble(m['ambientC']),
-        coreEstC: asDouble(m['coreEstC']),
-      );
+  factory TemperatureReading.fromMap(Map<String, dynamic> m) =>
+      TemperatureReading(objectC: asDouble(m['objectC']), ambientC: asDouble(m['ambientC']));
 }
 
 class MotionReading {
-  const MotionReading({
-    this.ax = 0,
-    this.ay = 0,
-    this.az = 0,
-    this.gx = 0,
-    this.gy = 0,
-    this.gz = 0,
-    this.magG,
-    this.state = MotionState.unknown,
-    this.stillSec,
-  });
+  const MotionReading({this.ax = 0, this.ay = 0, this.az = 0, this.gx = 0, this.gy = 0, this.gz = 0});
 
   final double ax, ay, az; // m/s^2
   final double gx, gy, gz; // deg/s
-  final double? magG; // C1
-  final MotionState state; // C1
-  final int? stillSec; // C1
 
   factory MotionReading.fromMap(Map<String, dynamic> m) => MotionReading(
         ax: asDouble(m['ax']) ?? 0,
@@ -118,9 +100,6 @@ class MotionReading {
         gx: asDouble(m['gx']) ?? 0,
         gy: asDouble(m['gy']) ?? 0,
         gz: asDouble(m['gz']) ?? 0,
-        magG: asDouble(m['magG']),
-        state: MotionState.parse(m['state']),
-        stillSec: asInt(m['stillSec']),
       );
 }
 
@@ -142,63 +121,6 @@ class GpsReading {
         speedMps: asDouble(m['speedMps']),
         headingDeg: asDouble(m['headingDeg']),
       );
-}
-
-/// C1 outputs.
-class Vitals {
-  const Vitals({
-    required this.contact,
-    this.bpm,
-    this.spo2,
-    this.rmssdMs,
-    this.sdnnMs,
-    this.stressScore,
-    this.stressLevel = StressLevel.unknown,
-  });
-
-  final bool contact;
-  final double? bpm;
-  final double? spo2;
-  final double? rmssdMs;
-  final double? sdnnMs;
-  final double? stressScore;
-  final StressLevel stressLevel;
-
-  factory Vitals.fromMap(Map<String, dynamic> m) {
-    final hrv = asMap(m['hrv']);
-    final stress = asMap(m['stress']);
-    return Vitals(
-      contact: asBool(m['contact']),
-      bpm: asDouble(m['bpm']),
-      spo2: asDouble(m['spo2']),
-      rmssdMs: asDouble(hrv['rmssdMs']),
-      sdnnMs: asDouble(hrv['sdnnMs']),
-      stressScore: asDouble(stress['score']),
-      stressLevel: StressLevel.parse(stress['level']),
-    );
-  }
-}
-
-/// C1 anomaly status.
-class AnomalyStatus {
-  const AnomalyStatus({required this.active, required this.severity, this.types = const [], this.since, this.latencyUs});
-
-  final bool active;
-  final Severity severity;
-  final List<String> types;
-  final DateTime? since;
-  final int? latencyUs;
-
-  factory AnomalyStatus.fromMap(Map<String, dynamic> m) {
-    final sinceMs = asInt(m['since']);
-    return AnomalyStatus(
-      active: asBool(m['active']),
-      severity: Severity.parse(m['severity']),
-      types: asStringList(m['types']),
-      since: sinceMs == null ? null : DateTime.fromMillisecondsSinceEpoch(sinceMs),
-      latencyUs: asInt(m['latencyUs']),
-    );
-  }
 }
 
 /// A `latest` snapshot plus the time this app received it (for online/offline status).

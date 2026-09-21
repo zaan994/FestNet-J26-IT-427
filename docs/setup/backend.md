@@ -36,18 +36,39 @@ Service account key: Firebase console → Project settings → Service accounts 
 private key*. Save it as `Backend/scripts/serviceAccount.json` (gitignored). **Never commit it.**
 
 ```bash
-npm run admin -- config                                       # thresholds + demo event
-npm run admin -- user --email you@x.com --password ****** --name "You" --role organiser
-npm run admin -- device --id FESTNET_001 --email <band account email>
-npm run admin -- list
+npm run admin config                                          # thresholds + demo event
+npm run admin user email=you@x.com password=****** name=You role=organiser
+npm run admin device id=FESTNET_001 email=<band account email>
+npm run admin list
 
+npm run process                                               # C1 health processor (local)
 npm run simulate                                              # 3 healthy virtual bands
-npm run simulate -- --bands 8 --scenario bpm-spike            # band SIM_001 spikes after 20 s
-npm run simulate -- --bands 10 --scenario crowd-walk          # everyone walks east at ~1.8 m/s
+npm run simulate bands=8 scenario=bpm-spike                   # band SIM_001 spikes after 20 s
+npm run simulate bands=10 scenario=crowd-walk                 # everyone walks east at ~1.8 m/s
 ```
 
-Scenarios: `normal | bpm-spike | heatstroke | low-spo2 | fall | sos | crowd-walk`.
-The simulator writes the **full** payload (including C1 vitals and anomalies), so dashboards and apps can be built before the firmware has those fields.
+> **Use `key=value` options** — they work in every shell, including Windows PowerShell:
+> `npm run admin user email=you@x.com password=****** name=You role=organiser`
+> `npm run admin device id=FESTNET_001 email=<band account email>`
+> `npm run simulate bands=5 scenario=bpm-spike`   ·   `npm run process device=FESTNET_001`
+> (`npm run admin -- user --email ...` also works in Git Bash / cmd, but PowerShell swallows the
+> bare `--`, npm then eats the `--flags`, and the script reports `Missing email`.)
+
+### C1 health processor (`npm run process`)
+
+The band uploads only raw signals. `npm run process` turns each raw chunk into
+`devices/{id}/health`, `history` and `alerts`. It runs the same code as the `processRawChunk`
+Cloud Function, but on your machine, so you don't need the Blaze plan. Keep it running while you
+use the dashboard or app, and **don't run it while the Cloud Function is deployed** (both would
+process every chunk). It also deletes raw chunks older than 5 minutes.
+
+### Simulator
+
+The simulator writes exactly what the real band writes (`latest` + `raw`, with synthetic
+PPG / IMU / temperature signals). Run it together with `npm run process` (or the deployed
+function) to see computed health data.
+
+Scenarios: `normal | bpm-spike | heatstroke | low-spo2 | fall | sos | no-contact | crowd-walk`.
 
 ## Security rules
 
@@ -62,15 +83,21 @@ write, and nobody can open the dashboard.
 
 ## Cloud Functions
 
-Cloud Functions require the **Blaze** (pay-as-you-go) plan. C1 works without them.
+Cloud Functions require the **Blaze** (pay-as-you-go) plan. Without it, use `npm run process` for C1.
 
 ```bash
 cd Backend/functions
 npm install
 npm run build
-npm test
+npm test              # includes the C1 algorithm tests (synthetic signals)
 firebase deploy --only functions
 ```
+
+| Function | Component | Trigger |
+|---|---|---|
+| `processRawChunk` | C1 | every new `devices/{id}/raw/{chunk}`. Runs one at a time (`maxInstances: 1`) so chunks are processed in order |
+| `pruneHealthHistory` | C1 | hourly; deletes history older than 24 h |
+| `onAlertCreated` | C2 (stub) | every new `alerts/{id}` |
 
 ## Local emulators (optional)
 

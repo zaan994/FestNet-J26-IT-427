@@ -6,6 +6,7 @@ import '../../../core/errors/app_exception.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../providers/firebase_providers.dart';
 import '../../../shared/extensions/context_extensions.dart';
+import '../../../shared/widgets/gradient_button.dart';
 import '../widgets/auth_scaffold.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -44,8 +45,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return AuthScaffold(
-      title: 'FestNet',
-      subtitle: 'Sign in to monitor your band',
+      title: 'Welcome back',
+      subtitle: 'Sign in to see your live health',
       children: [
         Form(
           key: _formKey,
@@ -71,12 +72,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        FilledButton(
-          onPressed: _busy ? null : _submit,
-          child: _busy
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Sign in'),
-        ),
+        GradientButton(label: 'Sign in', icon: Icons.login, loading: _busy, onPressed: _submit),
+        const SizedBox(height: 8),
         TextButton(
           onPressed: () => context.goNamed(Routes.register),
           child: const Text('New here? Create an account'),

@@ -6,6 +6,7 @@ import '../../../core/errors/app_exception.dart';
 import '../../../providers/auth_providers.dart';
 import '../../../providers/firebase_providers.dart';
 import '../../../shared/extensions/context_extensions.dart';
+import '../../../shared/widgets/gradient_button.dart';
 
 /// Pair a band by its ID (printed on the band / shown on its OLED, e.g. FESTNET_001).
 class PairDeviceScreen extends ConsumerStatefulWidget {
@@ -58,12 +59,7 @@ class _PairDeviceScreenState extends ConsumerState<PairDeviceScreen> {
             onSubmitted: (_) => _pair(),
           ),
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _busy ? null : _pair,
-            child: _busy
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Pair'),
-          ),
+          GradientButton(label: 'Pair band', icon: Icons.link, loading: _busy, onPressed: _pair),
         ],
       ),
     );

@@ -2,10 +2,10 @@
   "name": "festnet-scripts",
   "description": "FestNet admin CLI and band simulator",
   "private": true,
-  "type": "module",
   "scripts": {
     "admin": "tsx src/admin.ts",
     "simulate": "tsx src/band-simulator.ts",
+    "process": "tsx src/health-processor.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

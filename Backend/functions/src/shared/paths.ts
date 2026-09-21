@@ -13,9 +13,14 @@ export const paths = {
   devices: () => `${DB_ROOT}/devices`,
   device: (deviceId: string) => `${DB_ROOT}/devices/${deviceId}`,
   deviceLatest: (deviceId: string) => `${DB_ROOT}/devices/${deviceId}/latest`,
+  deviceRaw: (deviceId: string) => `${DB_ROOT}/devices/${deviceId}/raw`,
+  deviceHealth: (deviceId: string) => `${DB_ROOT}/devices/${deviceId}/health`,
   deviceHistory: (deviceId: string) => `${DB_ROOT}/devices/${deviceId}/history`,
   deviceLocation: (deviceId: string) => `${DB_ROOT}/devices/${deviceId}/location`,
   deviceMeta: (deviceId: string) => `${DB_ROOT}/devices/${deviceId}/meta`,
+
+  /** C1 processor state per band — backend only (no client access in the rules). */
+  processingState: (deviceId: string) => `${DB_ROOT}/processing/${deviceId}`,
 
   users: () => `${DB_ROOT}/users`,
   user: (uid: string) => `${DB_ROOT}/users/${uid}`,

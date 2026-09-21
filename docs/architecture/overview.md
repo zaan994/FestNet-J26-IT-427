@@ -2,18 +2,19 @@
 
 ```mermaid
 flowchart LR
-  subgraph Band["Wearable band (ESP32 DevKit v1)"]
-    S1[MAX30102<br/>BPM / SpO2] --> P
-    S2[MLX90614<br/>body temp] --> P
-    S3[MPU6050<br/>motion / fall] --> P
+  subgraph Band["Wearable band (ESP32 DevKit v1) — sensing only"]
+    S1[MAX30102<br/>PPG 100 Hz] --> P
+    S2[MLX90614<br/>skin temp] --> P
+    S3[MPU6050<br/>IMU 50 Hz] --> P
     S4[NEO-6M GPS] --> P
     S5[SOS button] --> P
-    P[On-device processing<br/>C1 anomaly detection] --> O[OLED + buzzer]
+    P[Sampling + 2 s raw chunks] --> O[OLED status]
   end
 
-  P -- "Wi-Fi today<br/>ESP-NOW mesh → gateway (planned)" --> RTDB[(Firebase<br/>Realtime Database)]
+  P -- "latest + raw (Wi-Fi today,<br/>ESP-NOW mesh → gateway planned)" --> RTDB[(Firebase<br/>Realtime Database)]
 
-  RTDB --> CF[Cloud Functions<br/>C2 dispatch / escalation<br/>C3 surge detection<br/>C4 wellness]
+  RTDB --> CF[Cloud Functions<br/>C1 HR / SpO2 / HRV / anomalies<br/>C2 dispatch / escalation<br/>C3 surge detection<br/>C4 heat stress / hydration]
+  CF -- "health, history, alerts" --> RTDB
   CF --> FCM[FCM push]
   RTDB <--> APP[Flutter app<br/>participants & volunteers]
   RTDB <--> DASH[React dashboard<br/>organisers & medical]
@@ -23,13 +24,16 @@ flowchart LR
 
 ## Data flow
 
-1. **Band → RTDB.** The band authenticates with its own Firebase Auth account and `set`s
-   `/festnet/devices/{deviceId}/latest` every few seconds (target 2 s). With C1 it also pushes
-   `history` snapshots and creates `/festnet/alerts/{id}` when it detects an anomaly or an SOS press.
-2. **RTDB → Cloud Functions (C2–C4).** Database triggers react to new alerts and data: FCM dispatch,
-   volunteer proximity (Haversine, 50 m), auto-escalation after 2 min, crowd surge detection and heat stress.
-3. **RTDB → apps.** The dashboard and the app subscribe to live data with the Firebase SDKs.
-   No custom server is needed.
+1. **Band → RTDB (raw only).** The band signs in with its own Firebase Auth account. Every 2 s it
+   `set`s `/festnet/devices/{deviceId}/latest` (current reading of every sensor) and pushes a
+   `raw/{pushId}` chunk with the full-rate PPG (100 Hz) and IMU (50 Hz) signals. It does no calculations.
+2. **RTDB → Cloud Functions → RTDB.** Database triggers compute everything:
+   - **C1:** BPM, SpO2, HRV and stress from the PPG; core temperature; fall and stillness from the IMU; anomaly detection → `health`, `history`, `alerts`.
+   - **C2:** FCM dispatch, volunteer proximity (Haversine, 50 m), auto-escalation after 2 min.
+   - **C3:** crowd flow and surge detection.
+   - **C4:** heat stress and hydration.
+3. **RTDB → apps.** The dashboard and the app subscribe to the computed nodes with the Firebase
+   SDKs. They never talk to the band. No custom server is needed.
 
 ## Design decisions
 
@@ -38,16 +42,17 @@ flowchart LR
 | Realtime Database rather than Firestore | Low-latency streaming of small, frequently overwritten documents; the band's existing code already uses it |
 | One shared contract (`docs/database/schema.md` + `Backend/functions/src/shared`) | Four people build against the same data; a single source avoids drift |
 | `deviceIndex/` node | Apps list bands without downloading every band's `history` |
-| Online status from **client receive time** | The current firmware has no wall-clock timestamp (`updatedAtMs` is `millis()`) |
-| On-device anomaly detection (C1) | Sub-100 ms local detection; works even when the network is down |
-| Detection logic on the band, dispatch logic in Functions | C1 has no dependency on the Blaze plan; C2 can iterate on alerting independently |
+| Online status from **client receive time** | Independent of the band's clock (works before NTP sync) |
+| Band uploads raw signals; **all calculations in the backend** | One place to develop, tune and validate algorithms (no re-flashing); raw data is kept for research analysis. Trade-offs: needs the Blaze plan for Functions, ~2–3 s detection delay (2 s chunk + function), and no detection while the band is offline |
+| Raw chunks pruned by the backend | ~12 MB/hour per band — keep minutes of raw data, keep computed `history` long-term |
 | Band per-device Auth accounts + `deviceAuth/{uid}` | Security rules can limit each band to writing only its own node |
 
 ## Security model (summary — see `Backend/database.rules.json`)
 
 | Who | Can read | Can write |
 |---|---|---|
-| Band (device account) | own `devices/{id}` | own `latest`, `history`, `location`, `meta`; create `alerts` for itself |
+| Band (device account) | own `devices/{id}` | own `latest`, `raw`, `meta` (`history`, `location` and `alerts` are also permitted) |
+| Cloud Functions (Admin SDK) | everything | everything (bypasses rules) — writes `health`, `history`, `alerts` |
 | Participant | own `users/{uid}`, paired band's `devices/{id}`, `events`, `deviceIndex`, own `wellness` | own profile (cannot raise own role), claim an unpaired band |
 | Volunteer | as participant + `alerts` | as participant |
 | Medical | all `devices`, `users`, `alerts`, `wellness` | `alerts` (acknowledge / resolve) |

@@ -49,11 +49,11 @@ describe("contract", () => {
     const file = resolve(__dirname, "../../../tests/test_data/sample_latest.json");
     const sample = JSON.parse(readFileSync(file, "utf8")) as DeviceLatest;
     const required: (keyof DeviceLatest)[] = [
-      "deviceId", "fwVersion", "online", "ts", "serverTs", "uptimeMs", "sosActive", "sensors",
-      "pulseRaw", "vitals", "temperature", "motion", "gps", "anomaly", "battery", "net",
+      "deviceId", "fwVersion", "online", "ts", "serverTs", "uptimeMs", "sosActive", "sosPressCount",
+      "sensors", "pulseRaw", "temperature", "motion", "gps", "net", "raw",
     ];
     for (const key of required) expect(sample).toHaveProperty(key);
-    expect(sample.vitals).toHaveProperty("hrv.rmssdMs");
-    expect(sample.vitals).toHaveProperty("stress.level");
+    expect(sample.gps).toHaveProperty("hdop");
+    expect(sample.raw).toHaveProperty("droppedChunks");
   });
 });

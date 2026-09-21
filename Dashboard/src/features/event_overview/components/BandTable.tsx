@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import { SeverityBadge } from "@/components/common/SeverityBadge";
 import { StatusDot } from "@/components/common/StatusDot";
 import { useNow } from "@/hooks/useNow";
@@ -8,70 +10,85 @@ const SENSOR_LABELS: [keyof SensorStatus, string][] = [
   ["max30102", "PPG"],
   ["mlx90614", "Temp"],
   ["mpu6050", "IMU"],
+  ["gps", "GPS"],
   ["oled", "OLED"],
 ];
 
-/** Foundation view of every band: proves the band -> Firebase -> dashboard pipeline end to end. */
+/** Every registered band with its connection, sensors and current state. */
 export function BandTable({ bands }: { bands: BandView[] }) {
   const now = useNow(1000);
 
   if (bands.length === 0) {
-    return <p className="text-sm text-slate-500">No bands registered yet. Add one above (e.g. FESTNET_001).</p>;
+    return (
+      <p className="rounded-xl bg-surface-2 px-4 py-8 text-center text-sm text-muted">
+        No bands registered yet. Add one above (e.g. FESTNET_001).
+      </p>
+    );
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="-mx-5 overflow-x-auto">
       <table className="w-full text-left text-sm">
-        <thead className="border-b text-xs uppercase text-slate-500">
-          <tr>
-            <th className="py-2 pr-4">Band</th>
-            <th className="py-2 pr-4">Status</th>
-            <th className="py-2 pr-4">Last update</th>
-            <th className="py-2 pr-4">Sensors</th>
-            <th className="py-2 pr-4">Skin temp</th>
-            <th className="py-2 pr-4">GPS</th>
-            <th className="py-2 pr-4">SOS</th>
-            <th className="py-2 pr-4">Anomaly</th>
+        <thead>
+          <tr className="border-y border-line bg-surface-2/60">
+            {["Band", "Status", "Last update", "Sensors", "Skin temp", "GPS", "SOS", "Health"].map((h) => (
+              <th key={h} className="eyebrow px-5 py-2.5">
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
-        <tbody className="divide-y">
-          {bands.map(({ deviceId, index, latest, lastSeenAt, online }) => (
-            <tr key={deviceId} className={latest?.sosActive ? "bg-red-50" : undefined}>
-              <td className="py-3 pr-4">
-                <p className="font-medium">{deviceId}</p>
-                {index?.label && index.label !== deviceId && <p className="text-xs text-slate-500">{index.label}</p>}
+        <tbody className="divide-y divide-line">
+          {bands.map(({ deviceId, index, latest, health, lastSeenAt, online }) => (
+            <tr
+              key={deviceId}
+              className={`transition hover:bg-surface-2/60 ${latest?.sosActive ? "bg-severity-critical/10" : ""}`}
+            >
+              <td className="px-5 py-3">
+                <Link to={`/health/${deviceId}`} className="font-semibold hover:text-brand">
+                  {deviceId}
+                </Link>
+                {index?.label && index.label !== deviceId && <p className="text-xs text-muted">{index.label}</p>}
               </td>
-              <td className="py-3 pr-4">
+              <td className="px-5 py-3">
                 <StatusDot online={online} label={!latest ? "No data" : lastSeenAt === null ? "Waiting…" : undefined} />
               </td>
-              <td className="py-3 pr-4 text-slate-600">{lastSeenAt ? timeAgo(lastSeenAt, now) : "—"}</td>
-              <td className="py-3 pr-4">
-                <div className="flex gap-1">
-                  {SENSOR_LABELS.map(([key, label]) => (
-                    <span
-                      key={key}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                        latest?.sensors?.[key] ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-400"
-                      }`}
-                    >
-                      {label}
-                    </span>
-                  ))}
+              <td className="px-5 py-3 text-muted">{lastSeenAt ? timeAgo(lastSeenAt, now) : "—"}</td>
+              <td className="px-5 py-3">
+                <div className="flex flex-wrap gap-1">
+                  {SENSOR_LABELS.map(([key, label]) => {
+                    const ok = Boolean(latest?.sensors?.[key]);
+                    return (
+                      <span
+                        key={key}
+                        title={`${label}: ${ok ? "detected" : "not detected"}`}
+                        className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                          ok ? "bg-severity-none/15 text-ink" : "bg-surface-2 text-muted line-through"
+                        }`}
+                      >
+                        {label}
+                      </span>
+                    );
+                  })}
                 </div>
               </td>
-              <td className="py-3 pr-4">{formatNumber(latest?.temperature?.objectC, 1, " °C")}</td>
-              <td className="py-3 pr-4 text-slate-600">
+              <td className="px-5 py-3 tabular-nums">{formatNumber(latest?.temperature?.objectC, 1, " °C")}</td>
+              <td className="px-5 py-3 tabular-nums text-muted">
                 {latest?.gps?.fix
                   ? `${formatNumber(latest.gps.latitude, 5)}, ${formatNumber(latest.gps.longitude, 5)}`
                   : latest
-                    ? `searching (${latest.gps?.satellites ?? 0} sat)`
+                    ? `searching · ${latest.gps?.satellites ?? 0} sat`
                     : "—"}
               </td>
-              <td className="py-3 pr-4">
-                {latest?.sosActive ? <span className="font-bold text-red-600">SOS</span> : <span className="text-slate-400">—</span>}
+              <td className="px-5 py-3">
+                {latest?.sosActive ? (
+                  <span className="rounded-full bg-severity-critical px-2.5 py-0.5 text-xs font-bold text-white">⚠ SOS</span>
+                ) : (
+                  <span className="text-muted">—</span>
+                )}
               </td>
-              <td className="py-3 pr-4">
-                {latest?.anomaly ? <SeverityBadge severity={latest.anomaly.severity} /> : <span className="text-xs text-slate-400">n/a</span>}
+              <td className="px-5 py-3">
+                {health && online ? <SeverityBadge severity={health.anomaly.severity} /> : <span className="text-xs text-muted">—</span>}
               </td>
             </tr>
           ))}

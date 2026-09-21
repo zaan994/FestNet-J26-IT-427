@@ -12,6 +12,7 @@ class DbPaths {
 
   static String device(String deviceId) => '$root/devices/$deviceId';
   static String deviceLatest(String deviceId) => '$root/devices/$deviceId/latest';
+  static String deviceHealth(String deviceId) => '$root/devices/$deviceId/health';
   static String deviceHistory(String deviceId) => '$root/devices/$deviceId/history';
   static String deviceMeta(String deviceId) => '$root/devices/$deviceId/meta';
 

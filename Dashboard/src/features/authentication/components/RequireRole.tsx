@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
 import { LoadingScreen } from "@/components/common/LoadingScreen";
+import { Logo } from "@/components/common/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { signOut } from "@/services/authService";
 import type { Role } from "@/types";
@@ -21,13 +22,16 @@ export function RequireRole({ roles, children }: Props) {
   if (!profile || !roles.includes(profile.role)) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="card max-w-md text-center">
-          <h1 className="text-lg font-semibold">No dashboard access</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            {user.email} has role <b>{profile?.role ?? "none"}</b>. The dashboard is for organisers and medical
-            staff. Ask an organiser to update your role (Backend/scripts: <code>npm run admin -- user …</code>).
+        <div className="card max-w-md p-8 text-center">
+          <div className="mb-6 flex justify-center">
+            <Logo />
+          </div>
+          <h1 className="text-lg font-bold">No dashboard access</h1>
+          <p className="mt-2 text-sm text-muted">
+            {user.email} has role <b className="text-ink">{profile?.role ?? "none"}</b>. The dashboard is for organisers and
+            medical staff. Ask an organiser to update your role.
           </p>
-          <button className="btn-ghost mt-4" onClick={() => void signOut()}>
+          <button type="button" className="btn-outline mt-6" onClick={() => void signOut()}>
             Sign out
           </button>
         </div>

@@ -1,52 +1,85 @@
+import 'package:festnet/models/device_health.dart';
 import 'package:festnet/models/device_latest.dart';
 import 'package:festnet/models/enums.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+Map<String, dynamic> _rtdb(Map<Object?, Object?> raw) => raw.map((k, v) => MapEntry(k.toString(), v));
+
 void main() {
-  test('parses the payload the current Arduino sketch sends', () {
-    // Shape written by the current firmware (no vitals / anomaly yet), with
-    // RTDB-style Map<Object?, Object?> and ints where doubles are expected.
-    final Map<Object?, Object?> raw = {
+  test('parses the latest payload the band sends', () {
+    // RTDB-style map; null fields are absent; ints where doubles are expected.
+    final latest = DeviceLatest.fromMap(_rtdb({
       'deviceId': 'FESTNET_001',
+      'fwVersion': '0.3.0',
       'online': true,
       'sosActive': false,
-      'updatedAtMs': 123456,
-      'sensors': {'mlx90614': true, 'max30102': true, 'mpu6050': false, 'oled': true},
+      'sosPressCount': 2,
+      'sensors': {'mlx90614': true, 'max30102': true, 'mpu6050': false, 'oled': true, 'gps': true},
       'temperature': {'ambientC': 29.5, 'objectC': 34},
       'pulseRaw': {'red': 98000, 'ir': 112000},
       'motion': {'ax': 0.1, 'ay': -0.2, 'az': 9.8, 'gx': 1, 'gy': 0, 'gz': 0},
-      'gps': {'fix': false, 'latitude': null, 'longitude': null, 'satellites': 3},
-    };
-
-    final latest = DeviceLatest.fromMap(raw.map((k, v) => MapEntry(k.toString(), v)));
+      'gps': {'fix': false, 'satellites': 3},
+      'net': {'transport': 'wifi', 'rssi': -61},
+    }));
 
     expect(latest.deviceId, 'FESTNET_001');
+    expect(latest.sosPressCount, 2);
     expect(latest.sensors.mpu6050, isFalse);
     expect(latest.temperature.objectC, 34.0);
     expect(latest.gps.fix, isFalse);
-    expect(latest.gps.satellites, 3);
-    expect(latest.vitals, isNull);
-    expect(latest.anomaly, isNull);
-    expect(latest.motion.state, MotionState.unknown);
+    expect(latest.gps.latitude, isNull);
+    expect(latest.rssi, -61);
   });
 
-  test('parses C1 fields when present', () {
-    final latest = DeviceLatest.fromMap({
-      'deviceId': 'SIM_001',
+  test('parses computed health from the backend', () {
+    final health = DeviceHealth.fromMap(_rtdb({
+      'deviceId': 'FESTNET_001',
+      'seq': 261,
+      'ts': 1760000002000,
+      'worn': true,
+      'signal': {'perfusionIndex': 1.18, 'beatsInChunk': 3, 'ppgSamples': 200, 'ppgOverflow': 0},
       'vitals': {
-        'contact': true,
         'bpm': 82,
         'spo2': 98,
-        'hrv': {'rmssdMs': 41.5, 'sdnnMs': 50.2},
-        'stress': {'score': 35, 'level': 'low'},
+        'hrv': {'rmssdMs': 38.5, 'sdnnMs': 52.1, 'ibiCount': 64},
+        'stress': {'score': 34, 'level': 'low', 'baselineReady': true},
       },
-      'anomaly': {'active': true, 'severity': 'danger', 'types': ['bpm_spike', 'high_temp'], 'since': 1760000000000},
-    });
+      'temperature': {'skinC': 34.21, 'ambientC': 29.81, 'coreEstC': 37.71},
+      'motion': {'magG': 1.004, 'state': 'active', 'stillSec': 0},
+      'anomaly': {
+        'active': true,
+        'severity': 'danger',
+        'types': ['bpm_spike', 'high_temp'],
+        'since': 1760000000000,
+      },
+      'latency': {'processingMs': 260},
+    }));
 
-    expect(latest.vitals!.bpm, 82.0);
-    expect(latest.vitals!.stressLevel, StressLevel.low);
-    expect(latest.anomaly!.severity, Severity.danger);
-    expect(latest.anomaly!.types, ['bpm_spike', 'high_temp']);
+    expect(health.worn, isTrue);
+    expect(health.vitals.bpm, 82.0);
+    expect(health.vitals.stressLevel, StressLevel.low);
+    expect(health.vitals.baselineReady, isTrue);
+    expect(health.temperature.coreEstC, 37.71);
+    expect(health.motion.state, MotionState.active);
+    expect(health.anomaly.severity, Severity.danger);
+    expect(health.anomaly.types, ['bpm_spike', 'high_temp']);
+    expect(health.processingMs, 260);
+  });
+
+  test('health without anomaly types (RTDB drops empty arrays)', () {
+    final health = DeviceHealth.fromMap(_rtdb({
+      'deviceId': 'X',
+      'seq': 1,
+      'ts': 1,
+      'worn': false,
+      'vitals': {'hrv': {'ibiCount': 0}, 'stress': {'level': 'unknown', 'baselineReady': false}},
+      'temperature': <String, Object?>{},
+      'motion': {'state': 'unknown', 'stillSec': 0},
+      'anomaly': {'active': false, 'severity': 'none'},
+    }));
+    expect(health.vitals.bpm, isNull);
+    expect(health.anomaly.types, isEmpty);
+    expect(health.anomaly.severity, Severity.none);
   });
 
   test('online status uses receive time', () {

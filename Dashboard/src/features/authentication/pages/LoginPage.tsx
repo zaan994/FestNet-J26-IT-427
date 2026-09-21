@@ -2,6 +2,8 @@ import { FirebaseError } from "firebase/app";
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
+import { Logo } from "@/components/common/Logo";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
 import { signIn } from "@/services/authService";
 
@@ -32,32 +34,55 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-900 p-6">
-      <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-4">
-        <div>
-          <h1 className="text-xl font-bold">FestNet Command</h1>
-          <p className="text-sm text-slate-500">Organiser & medical team sign-in</p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
+      {/* Stage lights */}
+      <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-brand/30 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -right-24 h-[28rem] w-[28rem] rounded-full bg-brand-2/25 blur-3xl" />
+
+      <div className="absolute right-6 top-6">
+        <ThemeToggle compact />
+      </div>
+
+      <div className="relative w-full max-w-md">
+        <div className="mb-8 flex justify-center">
+          <Logo size={48} subtitle="Smart wearable festival safety" />
         </div>
-        <label className="block space-y-1 text-sm">
-          <span className="font-medium">Email</span>
-          <input className="input" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label className="block space-y-1 text-sm">
-          <span className="font-medium">Password</span>
-          <input
-            className="input"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm capitalize text-red-700">{error}</p>}
-        <button type="submit" className="btn-primary w-full" disabled={submitting}>
-          {submitting ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+
+        <form onSubmit={onSubmit} className="card space-y-5 p-8">
+          <div>
+            <h1 className="text-2xl font-bold">Welcome back</h1>
+            <p className="mt-1 text-sm text-muted">Organiser &amp; medical team sign-in</p>
+          </div>
+
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">Email</span>
+            <input className="input" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">Password</span>
+            <input
+              className="input"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+
+          {error && (
+            <p className="rounded-xl border border-severity-critical/30 bg-severity-critical/10 px-3 py-2 text-sm capitalize text-ink">
+              ⚠ {error}
+            </p>
+          )}
+
+          <button type="submit" className="btn-primary w-full py-2.5" disabled={submitting}>
+            {submitting ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+
+        {/* <p className="mt-6 text-center text-xs text-muted">SLIIT IT4010 Research · J26-IT-427 · Prototype — not a certified medical device</p> */}
+      </div>
     </div>
   );
 }

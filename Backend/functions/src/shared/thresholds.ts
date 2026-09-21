@@ -17,5 +17,6 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   surgeSpeedMps: 1.5,
   surgeZoneRadiusM: 20,
   surgeMinBands: 5,
-  deviceOfflineAfterSec: 15, // current sketch uploads every 5 s; allow a few missed uploads
+  deviceOfflineAfterSec: 15, // band uploads every 2 s; allow a few missed uploads
+  skinToCoreOffsetC: 3.5,
 };

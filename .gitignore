@@ -34,7 +34,7 @@ coverage/
 .nyc_output/
 
 # Secrets & credentials — NEVER commit
-Firmware/include/secrets.h
+Firmware/**/secrets.h
 serviceAccount*.json
 *-service-account*.json
 google-services.json

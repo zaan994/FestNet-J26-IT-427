@@ -5,13 +5,13 @@ If you change a field here, update all mirrors in the **same** pull request:
 
 | Layer | Mirror file |
 |---|---|
-| Firmware (Arduino IDE sketch) | `Firmware/` — the JSON built in `uploadToFirebase()` |
+| Firmware (Arduino IDE sketch) | `Firmware/festnet_band/festnet_band.ino` — `uploadLatest()`, `uploadNextRawChunk()` |
 | Backend / Dashboard (TS) | `Backend/functions/src/shared/schema.ts` (Dashboard imports it via the `@shared` alias) |
 | Mobile (Dart) | `MobileApp/lib/models/*.dart`, `MobileApp/lib/core/constants/*.dart` |
 | Example payload | `tests/test_data/sample_latest.json` |
 
-**Apps must tolerate missing fields.** The band firmware grows component by component, so
-every reader treats any field not marked ✅ below as optional.
+**Apps must tolerate missing fields.** Older firmware or a missing sensor can leave fields
+out, so every reader treats fields as optional and shows "—" for them.
 
 Conventions:
 - All data lives under the root node **`/festnet`**.
@@ -28,61 +28,144 @@ Conventions:
 ├── deviceAuth/{authUid}        -> "FESTNET_001"  maps a band's Firebase login to its device node
 ├── deviceIndex/{deviceId}      { label, addedAt }  list of bands (lets apps list bands without downloading history)
 ├── devices/{deviceId}/
-│   ├── latest                  band writes every 2 s            (owner: C1, all read)
-│   ├── history/{pushId}        band writes snapshot every 10 s  (owner: C1)
-│   ├── location/{pushId}       GPS trail every 10 s             (owner: C3, reserved)
-│   └── meta                    firmware version, owner, event   (shared)
+│   ├── latest                  BAND writes every 2 s: current reading of every sensor (raw)
+│   ├── raw/{pushId}            BAND writes every 2 s: full-rate signal chunk (PPG 100 Hz, IMU 50 Hz)
+│   ├── health                  BACKEND writes: computed vitals + anomaly state     (owner: C1)
+│   ├── history/{pushId}        BACKEND writes: computed snapshot every 10 s         (owner: C1)
+│   ├── location/{pushId}       GPS trail every 10 s                                 (owner: C3, reserved)
+│   └── meta                    firmware version, owner, event                       (shared)
 ├── users/{uid}                 profile + role                    (shared)
-├── alerts/{alertId}            alert lifecycle                   (created by band/C1/SOS, owned by C2)
+├── processing/{deviceId}       BACKEND only: C1 processor state between chunks
+├── alerts/{alertId}            alert lifecycle                   (anomaly alerts created by the C1 backend; lifecycle owned by C2)
 ├── events/{eventId}/           event + zones + crowd analytics   (owner: C3)
 └── wellness/{uid}/             hydration log, heat stress, reports (owner: C4)
 ```
 
-## `devices/{deviceId}/latest`
+## Data flow
 
-Written as a whole object (`set`) every `LATEST_UPLOAD_INTERVAL_MS` (2 s).
+The **band only uploads raw readings**. Every calculation (BPM, SpO2, HRV, stress, core
+temperature, fall / stillness, anomalies, alerts) happens in the **backend** (Cloud Functions).
+The dashboard and mobile app read only from Firebase and never talk to the band.
 
-| Field | Type | Unit / values | Owner | Notes |
-|---|---|---|---|---|
-| `deviceId` | string | `FESTNET_001` | shared | |
-| `fwVersion` | string | semver | shared | |
-| `online` | bool | | shared | always `true` when written; staleness via `serverTs` |
-| `ts` | number\|null | epoch ms | shared | `null` until NTP sync |
-| `serverTs` | number | epoch ms | shared | Firebase server value |
-| `uptimeMs` | number | ms | shared | |
-| `sosActive` | bool | | C2 | SOS button currently pressed / latched |
-| `sensors` | object | `{oled, mlx90614, max30102, mpu6050, gps}` bools | shared | sensor detected at boot |
-| `pulseRaw` | object | `{red, ir}` raw ADC counts | C1 | debug / signal quality |
-| `vitals.contact` | bool | | C1 | finger/skin contact detected on MAX30102 |
-| `vitals.bpm` | number\|null | beats/min | C1 | |
-| `vitals.spo2` | number\|null | % | C1 | |
-| `vitals.hrv.rmssdMs` | number\|null | ms | C1 | |
-| `vitals.hrv.sdnnMs` | number\|null | ms | C1 | |
-| `vitals.stress.score` | number\|null | 0–100 | C1 | |
-| `vitals.stress.level` | string | `unknown \| low \| medium \| high` | C1 | |
-| `temperature.objectC` | number\|null | °C | C1 | MLX90614 object (skin) |
-| `temperature.ambientC` | number\|null | °C | C1 | MLX90614 die/ambient |
-| `temperature.coreEstC` | number\|null | °C | C1 | estimated core temperature (skin + offset) |
-| `motion.ax/ay/az` | number | m/s² | C1 | |
-| `motion.gx/gy/gz` | number | deg/s | C1 | |
-| `motion.magG` | number | g | C1 | acceleration magnitude |
-| `motion.state` | string | `unknown \| active \| still \| fall` | C1 | |
-| `motion.stillSec` | number | s | C1 | |
-| `gps.fix` | bool | | C3 | |
-| `gps.latitude` / `gps.longitude` | number\|null | deg | C3 | |
-| `gps.satellites` | number | | C3 | |
-| `gps.speedMps` | number\|null | m/s | C3 | |
-| `gps.headingDeg` | number\|null | deg | C3 | |
-| `anomaly.active` | bool | | C1 | |
-| `anomaly.severity` | string | `none \| warning \| danger \| critical` | C1 | |
-| `anomaly.types` | string[] | see *Anomaly types* | C1 | |
-| `anomaly.since` | number\|null | epoch ms | C1 | |
-| `anomaly.latencyUs` | number\|null | µs | C1 | detection latency (research metric) |
-| `battery.pct` | number\|null | % | shared | `null` until a fuel gauge is fitted |
-| `net.transport` | string | `wifi \| espnow` | shared | |
-| `net.rssi` | number\|null | dBm | shared | |
+```
+band ──► devices/{id}/latest, devices/{id}/raw ──► Cloud Functions ──► devices/{id}/health, history, alerts ──► apps
+```
 
-See `tests/test_data/sample_latest.json` for a full example.
+## `devices/{deviceId}/latest` — written by the band
+
+The current reading of every sensor. Written as a whole object (`set`) every 2 s, and
+immediately when the SOS button is pressed. Firmware: `Firmware/festnet_band/festnet_band.ino` → `uploadLatest()`.
+
+| Field | Type | Unit / values | Notes |
+|---|---|---|---|
+| `deviceId` | string | `FESTNET_001` | |
+| `fwVersion` | string | semver | |
+| `online` | bool | | always `true` when written; apps judge staleness themselves |
+| `ts` | number\|null | epoch ms | device clock (NTP); `null` until synced |
+| `serverTs` | number | epoch ms | Firebase server time |
+| `uptimeMs` | number | ms | `millis()` |
+| `updatedAtMs` | number | ms | same as `uptimeMs` — kept for older readers |
+| `sosActive` | bool | | button held, or pressed within the last 5 s |
+| `sosPressCount` | number | | increments on every press since boot — detect presses between uploads |
+| `sensors.{oled,mlx90614,max30102,mpu6050,gps}` | bool | | sensor detected at boot (`gps` = valid NMEA received) |
+| `pulseRaw.red` / `pulseRaw.ir` | number | 18-bit ADC counts | last MAX30102 sample |
+| `temperature.objectC` | number\|null | °C | MLX90614 object = **skin** temperature |
+| `temperature.ambientC` | number\|null | °C | MLX90614 ambient |
+| `motion.ax/ay/az` | number | m/s² | last MPU6050 sample |
+| `motion.gx/gy/gz` | number | deg/s | |
+| `gps.fix` | bool | | |
+| `gps.latitude` / `gps.longitude` | number\|null | deg | |
+| `gps.satellites` | number | | |
+| `gps.speedMps` | number\|null | m/s | |
+| `gps.headingDeg` | number\|null | deg | course over ground |
+| `gps.altitudeM` | number\|null | m | |
+| `gps.hdop` | number\|null | | horizontal dilution of precision (lower = better) |
+| `battery.pct` | null | % | no fuel gauge fitted yet |
+| `net.transport` | string | `wifi \| espnow` | |
+| `net.rssi` | number | dBm | |
+| `raw.enabled` | bool | | raw chunk upload switched on |
+| `raw.lastSeq` | number | | `seq` of the newest chunk produced |
+| `raw.pendingChunks` | number | | chunks waiting to upload (offline buffer) |
+| `raw.droppedChunks` | number | | chunks lost because the buffer was full |
+| `raw.ppgOverflowTotal` | number | | PPG samples lost in the sensor FIFO since boot |
+
+## `devices/{deviceId}/raw/{pushId}` — written by the band
+
+One **2-second chunk of full-rate signals**, pushed every 2 s (~7 KB). The input for all
+backend health calculations. Indexed on `seq`. Firmware: `uploadNextRawChunk()`.
+
+```json
+{
+  "seq": 1520,                       // increments by 1 per chunk; a gap = lost chunk
+  "t0": 1760000000000,               // epoch ms of the first sample (null until NTP sync)
+  "t0UptimeMs": 3040120,             // millis() of the first sample
+  "durationMs": 2000,
+  "serverTs": 1760000000180,
+  "ppg": {
+    "fs": 100,                       // sample rate (Hz); sample i is at t0 + i * 1000 / fs
+    "n": 200,
+    "overflow": 0,                   // samples lost in the MAX30102 FIFO during this chunk
+    "red": [98213, 98220, ...],      // n values, 18-bit ADC counts
+    "ir":  [112394, 112380, ...]
+  },
+  "imu": {
+    "fs": 50,
+    "n": 100,
+    "ax": [0.12, ...], "ay": [...], "az": [...],   // m/s^2
+    "gx": [1.2, ...],  "gy": [...], "gz": [...]    // deg/s
+  },
+  "temperature": { "objectC": 34.21, "ambientC": 29.8 },
+  "sosActive": false,
+  "sosPressCount": 0
+}
+```
+
+Notes for backend processing:
+- PPG samples are continuous across chunks (read from the sensor FIFO). Concatenate consecutive
+  `seq` values for beat detection. Treat a `seq` gap, or `overflow > 0`, as a discontinuity.
+- In the raw PPG, systole shows as a **dip** in IR/red counts (more absorption). An IR level
+  above ~50 000 suggests skin contact.
+- Volume: ~3.5 KB/s ≈ 12 MB/hour per band. **The backend must prune `raw/`** (keep minutes,
+  not days). Set `RAW_UPLOAD_ENABLED = false` in the sketch to pause raw uploads.
+
+## `devices/{deviceId}/health` — written by the backend (C1)
+
+Computed per raw chunk (every 2 s) by the C1 health processor
+(`Backend/functions/src/health`, run by the `processRawChunk` Cloud Function or
+`npm run process`). **This is what the dashboard and the app display.**
+Example: `tests/test_data/sample_health.json`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `deviceId`, `seq` | string, number | `seq` of the analysed raw chunk |
+| `ts` | epoch ms | end of the analysed chunk |
+| `updatedAt` | epoch ms | server time the record was written |
+| `worn` | bool | PPG sensor on skin (median IR ≥ 50 000) |
+| `signal.perfusionIndex` | number\|null | pulse amplitude / DC, % — signal quality |
+| `signal.beatsInChunk` / `ppgSamples` / `ppgOverflow` | number | |
+| `vitals.bpm` | number\|null | median of the last 8 accepted beat intervals |
+| `vitals.spo2` | number\|null | ratio-of-ratios, smoothed, **uncalibrated** |
+| `vitals.hrv.rmssdMs` / `sdnnMs` | number\|null | over the last 60 s (≥ 10 beats) |
+| `vitals.hrv.ibiCount` | number | beats in the HRV window |
+| `vitals.stress.score` | number\|null | 0–100 |
+| `vitals.stress.level` | string | `unknown \| low \| medium \| high` |
+| `vitals.stress.baselineReady` | bool | personal baseline learnt (first 2 min of wear) |
+| `temperature.skinC` / `ambientC` | number\|null | smoothed MLX90614 readings |
+| `temperature.coreEstC` | number\|null | skin + `skinToCoreOffsetC` (only while worn) |
+| `motion.magG` | number\|null | mean acceleration magnitude (g) |
+| `motion.state` | string | `unknown \| active \| still \| fall` |
+| `motion.stillSec` | number | seconds without movement |
+| `anomaly.active` | bool | |
+| `anomaly.severity` | string | `none \| warning \| danger \| critical` |
+| `anomaly.types` | string[] | missing when empty |
+| `anomaly.since` | epoch ms | onset of the current anomaly |
+| `latency.processingMs` | number | server receipt of the raw chunk → health written |
+| `latency.endToEndMs` | number | end of the chunk on the band → health written |
+
+## `processing/{deviceId}` — backend only
+
+Persisted processor state (signal tails, beat intervals, baselines, anomaly timers) between
+chunks. No client access (not in the security rules); only the Admin SDK uses it.
 
 ### Anomaly types
 `bpm_spike`, `low_spo2`, `high_temp`, `stillness`, `fall`, `sos`
@@ -90,11 +173,13 @@ See `tests/test_data/sample_latest.json` for a full example.
 ### Severity
 `none` < `warning` < `danger` < `critical`
 
-## `devices/{deviceId}/history/{pushId}`
-Compact snapshot, every `HISTORY_UPLOAD_INTERVAL_MS` (10 s). Indexed on `ts`.
+## `devices/{deviceId}/history/{pushId}` — written by the backend (C1)
+Compact computed snapshot, every 10 s. Indexed on `ts`.
+Kept for 24 h (hourly cleanup).
 ```json
-{ "ts": 1760000000000, "bpm": 82, "spo2": 98, "rmssdMs": 41.2, "stressScore": 35,
-  "objectC": 34.1, "coreEstC": 37.6, "motionState": "active", "severity": "none" }
+{ "ts": 1760000000000, "serverTs": 1760000000300, "bpm": 82, "spo2": 98, "rmssdMs": 41.2,
+  "stressScore": 35, "skinC": 34.1, "coreEstC": 37.6, "motionState": "active",
+  "severity": "none", "worn": true }
 ```
 
 ## `devices/{deviceId}/meta`
@@ -122,7 +207,8 @@ Roles: `participant` (self-registers) · `volunteer` · `medical` · `organiser`
 "Staff" = `organiser` or `medical`.
 
 ## `alerts/{alertId}`
-Created by the band (C1 anomaly onset or SOS press). Lifecycle fields are owned by C2.
+Anomaly alerts are created by the C1 health processor when severity rises (onset or
+escalation). SOS alerts are C2's: detect `latest.sosPressCount` increasing. Lifecycle fields are owned by C2.
 ```json
 {
   "deviceId": "FESTNET_001",
@@ -149,7 +235,7 @@ Defaults mirror the TAF and `Firmware/include/config.h`.
   "coreTempHighC": 38.0, "stillnessTimeoutSec": 30,
   "alertEscalationSec": 120, "volunteerRadiusM": 50,
   "surgeSpeedMps": 1.5, "surgeZoneRadiusM": 20, "surgeMinBands": 5,
-  "deviceOfflineAfterSec": 15
+  "deviceOfflineAfterSec": 15, "skinToCoreOffsetC": 3.5
 }
 ```
 

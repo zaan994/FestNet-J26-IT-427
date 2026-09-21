@@ -10,7 +10,7 @@ participants and volunteers, and a React dashboard serves organisers and the med
 
 | # | Component | Owner | Firmware | Backend | Dashboard | Mobile |
 |---|---|---|---|---|---|---|
-| C1 | Real-Time Health Monitoring | Rizvi M.Z.M. (IT23305564) | sensors, HR/SpO2/HRV, anomaly detection | `triggers/health.ts` | `features/live_health` | `features/health_monitoring`, `health_analysis` |
+| C1 | Real-Time Health Monitoring | Rizvi M.Z.M. (IT23305564) | PPG / IMU / temperature sampling | `triggers/health.ts` — HR, SpO2, HRV, anomaly detection | `features/live_health` | `features/health_monitoring`, `health_analysis` |
 | C2 | Emergency Alert System | Manubasha K.D.C. (IT23282322) | SOS button | `triggers/alerts.ts` | `features/emergency_command`, `responder_management` | `features/emergency` |
 | C3 | Location & Crowd Tracking | Pemarathna P.A.J. (IT23378452) | GPS | `triggers/crowd.ts` | `features/crowd_monitoring` | `features/festival_location` |
 | C4 | Hydration & Wellness | Bandara W.M.T.N. (IT23377158) | — | `triggers/wellness.ts` | `features/heat_wellness`, `reports_analytics` | `features/heat_wellness` |
@@ -42,7 +42,7 @@ tests/        Integration tests and shared test data (sample payloads)
 
 | Part | State |
 |---|---|
-| Firmware | Single-band sketch reading all sensors and uploading to `/festnet/devices/FESTNET_001/latest` |
+| Firmware | `Firmware/festnet_band` uploads every sensor reading (`latest`) and full-rate PPG/IMU chunks (`raw`) every 2 s |
 | Backend | Rules, shared contract, functions skeleton, admin CLI, simulator |
 | Dashboard | Login + role guard, layout, Event Overview (live band table), placeholders for C1–C4 |
 | Mobile | Login/register, bottom-nav shell, band pairing, band status, placeholders for C1–C4 |

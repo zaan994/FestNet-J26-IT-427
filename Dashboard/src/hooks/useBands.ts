@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { subscribeDeviceIndex, subscribeDeviceLatest } from "@/services/deviceService";
-import type { BandView, DeviceIndexEntry, DeviceLatest } from "@/types";
+import { subscribeDeviceHealth, subscribeDeviceIndex, subscribeDeviceLatest } from "@/services/deviceService";
+import type { BandView, DeviceHealth, DeviceIndexEntry, DeviceLatest } from "@/types";
 import { DEFAULT_THRESHOLDS } from "@shared/thresholds";
 
 import { useNow } from "./useNow";
@@ -19,6 +19,7 @@ interface LatestEntry {
 export function useBands(offlineAfterSec = DEFAULT_THRESHOLDS.deviceOfflineAfterSec) {
   const [index, setIndex] = useState<Record<string, DeviceIndexEntry> | null>(null);
   const [latest, setLatest] = useState<Record<string, LatestEntry>>({});
+  const [health, setHealth] = useState<Record<string, DeviceHealth | null>>({});
   const now = useNow(1000);
 
   useEffect(() => subscribeDeviceIndex(setIndex), []);
@@ -38,7 +39,10 @@ export function useBands(offlineAfterSec = DEFAULT_THRESHOLDS.deviceOfflineAfter
         }));
       });
     });
-    return () => unsubs.forEach((u) => u());
+    const healthUnsubs = deviceIds.map((id) =>
+      subscribeDeviceHealth(id, (value) => setHealth((prev) => ({ ...prev, [id]: value }))),
+    );
+    return () => [...unsubs, ...healthUnsubs].forEach((u) => u());
   }, [deviceIds]);
 
   const bands: BandView[] = deviceIds.map((deviceId) => {
@@ -48,6 +52,7 @@ export function useBands(offlineAfterSec = DEFAULT_THRESHOLDS.deviceOfflineAfter
       deviceId,
       index: index?.[deviceId] ?? null,
       latest: entry?.latest ?? null,
+      health: health[deviceId] ?? null,
       lastSeenAt,
       online: lastSeenAt !== null && now - lastSeenAt < offlineAfterSec * 1000,
     };

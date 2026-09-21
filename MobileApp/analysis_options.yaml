@@ -3,6 +3,9 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   exclude:
     - lib/firebase_options.dart
+    - build/**
+    - android/**
+    - web/**
 
 linter:
   rules:

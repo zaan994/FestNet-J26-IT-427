@@ -8,7 +8,7 @@ import '../../../providers/device_providers.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_dot.dart';
 
-/// Connection + raw sensor status of the paired band (foundation-level view).
+/// Connection + sensor status of the paired band (raw `latest` data from the band).
 class BandStatusCard extends ConsumerWidget {
   const BandStatusCard({super.key, required this.deviceId, required this.snapshot});
 
@@ -47,8 +47,9 @@ class BandStatusCard extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _Row('Skin temperature', formatNumber(latest.temperature.objectC, decimals: 1, unit: ' °C')),
-                _Row('Ambient', formatNumber(latest.temperature.ambientC, decimals: 1, unit: ' °C')),
+                _Row('Air temperature', formatNumber(latest.temperature.ambientC, decimals: 1, unit: ' °C')),
+                _Row('Wi-Fi signal', formatNumber(latest.rssi, unit: ' dBm')),
+                _Row('Firmware', latest.fwVersion ?? '—'),
                 _Row('SOS', latest.sosActive ? 'ACTIVE' : 'Normal'),
               ],
             ),

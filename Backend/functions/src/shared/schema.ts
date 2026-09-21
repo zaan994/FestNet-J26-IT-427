@@ -31,89 +31,134 @@ export interface SensorStatus {
   gps?: boolean;
 }
 
-export interface Vitals {
-  contact: boolean;
-  bpm: number | null;
-  spo2: number | null;
-  hrv: { rmssdMs: number | null; sdnnMs: number | null };
-  stress: { score: number | null; level: StressLevel };
-}
-
-export interface TemperatureReading {
-  objectC: number | null;
-  ambientC: number | null;
-  coreEstC?: number | null; // C1
-}
-
-export interface MotionReading {
-  ax: number;
-  ay: number;
-  az: number;
-  gx: number;
-  gy: number;
-  gz: number;
-  magG?: number | null; // C1
-  state?: MotionState; // C1
-  stillSec?: number; // C1
-}
+// RTDB never stores null: a field written as null is simply absent when read back,
+// so every nullable field below is also optional.
 
 export interface GpsReading {
   fix: boolean;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   satellites: number;
   speedMps?: number | null; // C3
   headingDeg?: number | null; // C3
-}
-
-export interface AnomalyStatus {
-  active: boolean;
-  severity: Severity;
-  /** RTDB drops empty arrays, so this may be missing when there are no anomalies. */
-  types?: AnomalyType[];
-  since: EpochMs | null;
-  latencyUs: number | null;
+  altitudeM?: number | null;
+  hdop?: number | null;
 }
 
 /**
- * devices/{deviceId}/latest
- * Required fields are already written by the current Arduino sketch; optional ones
- * are added as each component lands (see the Status column in docs/database/schema.md).
+ * devices/{deviceId}/latest — written by the BAND every 2 s (raw readings only).
+ * Firmware: Firmware/festnet_band/festnet_band.ino -> uploadLatest()
  */
 export interface DeviceLatest {
   deviceId: string;
   online: boolean;
-  sosActive: boolean;
-  sensors: SensorStatus;
-  pulseRaw: { red: number; ir: number };
-  temperature: TemperatureReading;
-  motion: MotionReading;
-  gps: GpsReading;
-  /** millis() since boot — NOT a wall-clock time. */
-  updatedAtMs?: number;
-
   fwVersion?: string;
   ts?: EpochMs | null;
   serverTs?: EpochMs;
   uptimeMs?: number;
-  vitals?: Vitals; // C1
-  anomaly?: AnomalyStatus; // C1
-  battery?: { pct: number | null };
-  net?: { transport: Transport; rssi: number | null };
+  /** millis() since boot — NOT a wall-clock time. */
+  updatedAtMs?: number;
+  sosActive: boolean;
+  sosPressCount?: number;
+  sensors: SensorStatus;
+  pulseRaw: { red: number; ir: number };
+  temperature: { objectC?: number | null; ambientC?: number | null };
+  motion: { ax: number; ay: number; az: number; gx: number; gy: number; gz: number };
+  gps: GpsReading;
+  battery?: { pct?: number | null };
+  net?: { transport: Transport; rssi?: number | null };
+  raw?: {
+    enabled: boolean;
+    lastSeq: number;
+    pendingChunks: number;
+    droppedChunks: number;
+    ppgOverflowTotal: number;
+  };
 }
 
-/** devices/{deviceId}/history/{pushId} */
+/**
+ * devices/{deviceId}/raw/{pushId} — written by the BAND every 2 s.
+ * Full-rate signals; the input of the C1 health processor.
+ */
+export interface RawChunk {
+  seq: number;
+  /** Epoch ms of the first sample (missing until the band's NTP sync). */
+  t0?: EpochMs | null;
+  /** Band millis() of the first sample. */
+  t0UptimeMs: number;
+  durationMs: number;
+  serverTs?: EpochMs;
+  ppg?: { fs: number; n: number; overflow: number; red?: number[]; ir?: number[] };
+  imu?: {
+    fs: number;
+    n: number;
+    ax?: number[];
+    ay?: number[];
+    az?: number[];
+    gx?: number[];
+    gy?: number[];
+    gz?: number[];
+  };
+  temperature?: { objectC?: number | null; ambientC?: number | null };
+  sosActive?: boolean;
+  sosPressCount?: number;
+}
+
+/**
+ * devices/{deviceId}/health — written by the BACKEND (C1 health processor) per raw chunk.
+ * This is what the dashboard and the mobile app display.
+ */
+export interface DeviceHealth {
+  deviceId: string;
+  seq: number;
+  /** Epoch ms at the end of the analysed chunk. */
+  ts: EpochMs;
+  /** Server time the health record was written. */
+  updatedAt?: EpochMs;
+  /** PPG sensor touches skin (band is worn). */
+  worn: boolean;
+  signal: {
+    /** Pulse amplitude relative to the DC level, % — higher = cleaner signal. */
+    perfusionIndex?: number | null;
+    beatsInChunk: number;
+    ppgSamples: number;
+    ppgOverflow: number;
+  };
+  vitals: {
+    bpm?: number | null;
+    spo2?: number | null;
+    hrv: { rmssdMs?: number | null; sdnnMs?: number | null; ibiCount: number };
+    stress: { score?: number | null; level: StressLevel; baselineReady: boolean };
+  };
+  temperature: { skinC?: number | null; ambientC?: number | null; coreEstC?: number | null };
+  motion: { magG?: number | null; state: MotionState; stillSec: number };
+  anomaly: {
+    active: boolean;
+    severity: Severity;
+    types?: AnomalyType[];
+    since?: EpochMs | null;
+  };
+  latency: {
+    /** Server receive time of the raw chunk -> health computed (ms). */
+    processingMs?: number | null;
+    /** End of the chunk on the band -> health computed (ms); needs NTP on the band. */
+    endToEndMs?: number | null;
+  };
+}
+
+/** devices/{deviceId}/history/{pushId} — written by the BACKEND every 10 s. */
 export interface HistoryPoint {
-  ts: EpochMs | null;
-  serverTs: EpochMs;
-  bpm: number | null;
-  spo2: number | null;
-  rmssdMs: number | null;
-  stressScore: number | null;
-  objectC: number | null;
-  coreEstC: number | null;
+  ts: EpochMs;
+  serverTs?: EpochMs;
+  bpm?: number | null;
+  spo2?: number | null;
+  rmssdMs?: number | null;
+  stressScore?: number | null;
+  skinC?: number | null;
+  coreEstC?: number | null;
   motionState: MotionState;
   severity: Severity;
+  worn: boolean;
 }
 
 /** deviceIndex/{deviceId} */
@@ -149,22 +194,22 @@ export interface LatLng {
   longitude: number;
 }
 
-/** alerts/{alertId} — created by the band, lifecycle owned by C2. */
+/** alerts/{alertId} — anomaly alerts are created by the C1 health processor; lifecycle owned by C2. */
 export interface Alert {
   deviceId: string;
   source: AlertSource;
   types?: AnomalyType[];
   severity: Severity;
   status: AlertStatus;
-  createdAt: EpochMs | null;
+  createdAt?: EpochMs | null;
   serverCreatedAt: EpochMs;
   vitals: {
-    bpm: number | null;
-    spo2: number | null;
-    coreEstC: number | null;
-    stressScore: number | null;
+    bpm?: number | null;
+    spo2?: number | null;
+    coreEstC?: number | null;
+    stressScore?: number | null;
   };
-  location: LatLng | null;
+  location?: LatLng | null;
   ack?: { by: string; at: EpochMs } | null;
   escalation?: { level: number; at: EpochMs } | null;
   dispatch?: Record<string, unknown> | null;
@@ -184,6 +229,8 @@ export interface Thresholds {
   surgeZoneRadiusM: number;
   surgeMinBands: number;
   deviceOfflineAfterSec: number;
+  /** C1: wrist skin temperature + this offset = estimated core temperature. Calibrate per enclosure. */
+  skinToCoreOffsetC: number;
 }
 
 export type ZoneType = "stage" | "exit" | "first_aid" | "toilet" | "water" | "other";

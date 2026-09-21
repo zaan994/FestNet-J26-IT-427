@@ -4,11 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/app_exception.dart';
 import '../../../core/routing/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../providers/auth_providers.dart';
 import '../../../providers/firebase_providers.dart';
 import '../../../shared/dialogs/confirm_dialog.dart';
 import '../../../shared/extensions/context_extensions.dart';
+import '../../../shared/widgets/festnet_logo.dart';
+import '../../../shared/widgets/gradient_button.dart';
 import '../../../shared/widgets/section_card.dart';
+import '../../../shared/widgets/theme_mode_selector.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -42,38 +46,74 @@ class ProfileScreen extends ConsumerWidget {
           if (profile == null) {
             return const Center(child: Text('Profile not found.'));
           }
+          final name = profile.name.isEmpty ? profile.email : profile.name;
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
-              SectionCard(
-                title: profile.name.isEmpty ? profile.email : profile.name,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              // Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(gradient: AppColors.brandGradient, borderRadius: BorderRadius.circular(24)),
+                child: Row(
                   children: [
-                    Text(profile.email),
-                    const SizedBox(height: 8),
-                    Chip(label: Text(profile.role.name)),
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      child: Text(name.characters.first.toUpperCase(),
+                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name,
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white),
+                              overflow: TextOverflow.ellipsis),
+                          Text(profile.email, style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(profile.role.name.toUpperCase(),
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               SectionCard(
                 title: 'My band',
+                icon: Icons.watch_outlined,
                 child: profile.hasBand
                     ? ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.watch),
-                        title: Text(profile.deviceId!),
+                        leading: const FestNetLogo(size: 40, wordmark: false),
+                        title: Text(profile.deviceId!, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        subtitle: const Text('Paired'),
                         trailing: TextButton(
                           onPressed: () => _unpair(context, ref, profile.uid, profile.deviceId!),
                           child: const Text('Unpair'),
                         ),
                       )
-                    : FilledButton.icon(
+                    : GradientButton(
+                        label: 'Pair band',
+                        icon: Icons.link,
                         onPressed: () => context.goNamed(Routes.pairDevice),
-                        icon: const Icon(Icons.link),
-                        label: const Text('Pair band'),
                       ),
+              ),
+              const SizedBox(height: 16),
+              const SectionCard(
+                title: 'Appearance',
+                icon: Icons.palette_outlined,
+                child: SizedBox(width: double.infinity, child: ThemeModeSelector()),
               ),
               const SizedBox(height: 24),
               OutlinedButton.icon(

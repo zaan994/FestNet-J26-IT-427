@@ -27,6 +27,10 @@
           "latest": {
             ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
           },
+          "raw": {
+            ".indexOn": ["seq", "serverTs"],
+            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
+          },
           "history": {
             ".indexOn": ["ts"],
             ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"

@@ -6,6 +6,7 @@ import '../../../core/errors/app_exception.dart';
 import '../../../core/routing/app_router.dart';
 import '../../../providers/firebase_providers.dart';
 import '../../../shared/extensions/context_extensions.dart';
+import '../../../shared/widgets/gradient_button.dart';
 import '../widgets/auth_scaffold.dart';
 
 /// Self-registration creates a participant account. Volunteer / medical / organiser
@@ -83,12 +84,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        FilledButton(
-          onPressed: _busy ? null : _submit,
-          child: _busy
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Create account'),
-        ),
+        GradientButton(label: 'Create account', icon: Icons.person_add_alt_1, loading: _busy, onPressed: _submit),
+        const SizedBox(height: 8),
         TextButton(
           onPressed: () => context.goNamed(Routes.login),
           child: const Text('Already have an account? Sign in'),

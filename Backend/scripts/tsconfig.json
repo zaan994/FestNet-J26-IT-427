@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "../functions/src/shared"]
+  "include": ["src", "../functions/src/shared", "../functions/src/health"]
 }

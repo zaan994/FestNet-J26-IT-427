@@ -6,6 +6,7 @@ import { CrowdMonitoringPage } from "@/features/crowd_monitoring/pages/CrowdMoni
 import { EmergencyCommandPage } from "@/features/emergency_command/pages/EmergencyCommandPage";
 import { EventOverviewPage } from "@/features/event_overview/pages/EventOverviewPage";
 import { HeatWellnessPage } from "@/features/heat_wellness/pages/HeatWellnessPage";
+import { BandDetailPage } from "@/features/live_health/pages/BandDetailPage";
 import { LiveHealthPage } from "@/features/live_health/pages/LiveHealthPage";
 import { ReportsPage } from "@/features/reports_analytics/pages/ReportsPage";
 import { RespondersPage } from "@/features/responder_management/pages/RespondersPage";
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/overview" replace /> },
       { path: "overview", element: <EventOverviewPage /> },
       { path: "health", element: <LiveHealthPage /> }, // C1
+      { path: "health/:deviceId", element: <BandDetailPage /> }, // C1
       { path: "emergency", element: <EmergencyCommandPage /> }, // C2
       { path: "responders", element: <RespondersPage /> }, // C2
       { path: "crowd", element: <CrowdMonitoringPage /> }, // C3
