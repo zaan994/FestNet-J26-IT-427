@@ -1,0 +1,11 @@
+{
+  "name": "festnet-j26-it-427",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix Dashboard run dev",
+    "dev": "npm --prefix Dashboard run dev",
+    "build": "npm --prefix Dashboard run build",
+    "preview": "npm --prefix Dashboard run preview"
+  }
+}
