@@ -6,6 +6,10 @@
     "start": "npm --prefix Dashboard run dev",
     "dev": "npm --prefix Dashboard run dev",
     "build": "npm --prefix Dashboard run build",
-    "preview": "npm --prefix Dashboard run preview"
+    "preview": "npm --prefix Dashboard run preview",
+    "backend:dev": "npm --prefix Backend/functions run dev",
+    "backend:start": "npm --prefix Backend/functions start",
+    "backend:test": "npm --prefix Backend/functions test",
+    "backend:simulate": "npm --prefix Backend/functions run simulate"
   }
 }

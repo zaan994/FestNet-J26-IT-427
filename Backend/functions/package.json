@@ -1,0 +1,29 @@
+{
+  "name": "festnet-backend-functions",
+  "version": "1.0.0",
+  "description": "FestNet Location and Crowd Tracking Backend Services & Cloud Functions",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx test/crowdAnalysis.test.ts",
+    "simulate": "tsx ../scripts/simulate_crowd.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "firebase-admin": "^12.7.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.7.5",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

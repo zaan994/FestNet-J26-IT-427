@@ -119,7 +119,7 @@ export const App: React.FC = () => {
         />
       )}
       {activeTab === 'health' && <LiveHealthPage vitals={vitals} />}
-      {activeTab === 'crowd' && <CrowdMonitoringPage zones={zones} />}
+      {activeTab === 'crowd' && <CrowdMonitoringPage />}
       {activeTab === 'emergency' && (
         <EmergencyCommandPage
           alerts={alerts}

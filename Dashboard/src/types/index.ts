@@ -45,3 +45,89 @@ export interface Responder {
   contactNumber: string;
   assignedIncidentId?: string;
 }
+
+// ==========================================
+// Location & Crowd Tracking Component Types
+// ==========================================
+
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+export type ZoneCategory = 'STAGE' | 'EXIT' | 'FIRST_AID' | 'RESTROOM' | 'FOOD_BEVERAGE' | 'CAMPING' | 'SECURITY';
+
+export interface EventZone {
+  id: string;
+  name: string;
+  type: ZoneCategory;
+  polygon: GeoPoint[];
+  capacity: number;
+  surgeSpeedThresholdKmH: number;
+  densityWarningThreshold?: number;
+  color?: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type CrowdFlowStatus = 
+  | 'NORMAL_STATIC'
+  | 'NORMAL_DISPERSED'
+  | 'COORDINATED_FLOW'
+  | 'ELEVATED_FLOW'
+  | 'CRITICAL_SURGE'
+  | 'BOTTLENECK';
+
+export interface Vector2D {
+  x: number;
+  y: number;
+}
+
+export interface CrowdMetric {
+  zoneId: string;
+  zoneName: string;
+  deviceCount: number;
+  sampleSize: number;
+  averageSpeedKmH: number;
+  dominantHeadingDeg: number;
+  dominantDirectionCardinal: string;
+  coherenceScore: number;
+  flowVector: Vector2D;
+  occupancyPercentage: number;
+  status: CrowdFlowStatus;
+  surgeDetected: boolean;
+  lastCalculated: string;
+}
+
+export interface DeviceLocation {
+  deviceId: string;
+  attendeeId?: string;
+  latitude: number;
+  longitude: number;
+  altitude?: number;
+  speed: number;
+  heading: number;
+  satellites: number;
+  fixQuality: 'Valid' | 'Invalid';
+  timestamp: string;
+  battery?: number;
+  currentZoneId?: string | null;
+}
+
+export interface SurgeAlert {
+  id: string;
+  zoneId: string;
+  zoneName: string;
+  type: 'CROWD_SURGE' | 'BOTTLENECK' | 'OVERCROWDING';
+  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  message: string;
+  averageSpeedKmH: number;
+  speedThresholdKmH: number;
+  dominantHeadingDeg: number;
+  dominantDirectionCardinal: string;
+  coherenceScore: number;
+  deviceCount: number;
+  status: 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED';
+  timestamp: string;
+}
