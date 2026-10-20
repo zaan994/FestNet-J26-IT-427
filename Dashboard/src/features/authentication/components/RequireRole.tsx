@@ -3,33 +3,32 @@ import { Navigate, useLocation } from "react-router-dom";
 
 import { LoadingScreen } from "@/components/common/LoadingScreen";
 import { Logo } from "@/components/common/Logo";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, usePermissions } from "@/hooks/useAuth";
 import { signOut } from "@/services/authService";
-import type { Role } from "@/types";
 
-interface Props {
-  roles: Role[];
-  children: ReactNode;
-}
-
-export function RequireRole({ roles, children }: Props) {
-  const { user, profile, loading } = useAuth();
+/**
+ * Staff gate: any global role (deviceAdmin / researchAdmin) or any event role.
+ * This only hides the UI — the security rules and backend enforce real access.
+ */
+export function RequireStaff({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  const { isStaff } = usePermissions();
   const location = useLocation();
 
   if (loading) return <LoadingScreen message="Checking access…" />;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
-  if (!profile || !roles.includes(profile.role)) {
+  if (!isStaff) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="card max-w-md p-8 text-center">
           <div className="mb-6 flex justify-center">
             <Logo />
           </div>
-          <h1 className="text-lg font-bold">No dashboard access</h1>
+          <h1 className="text-lg font-bold">No staff access</h1>
           <p className="mt-2 text-sm text-muted">
-            {user.email} has role <b className="text-ink">{profile?.role ?? "none"}</b>. The dashboard is for organisers and
-            medical staff. Ask an organiser to update your role.
+            {user.email} has no staff role. The dashboard is for event operators, medical responders, device administrators and research
+            administrators. Attendees use the FestNet mobile app. Ask a device administrator to grant you a role.
           </p>
           <button type="button" className="btn-outline mt-6" onClick={() => void signOut()}>
             Sign out
@@ -38,6 +37,5 @@ export function RequireRole({ roles, children }: Props) {
       </div>
     );
   }
-
   return <>{children}</>;
 }

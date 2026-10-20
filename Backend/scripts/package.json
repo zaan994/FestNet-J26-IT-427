@@ -1,11 +1,12 @@
 {
   "name": "festnet-scripts",
-  "description": "FestNet admin CLI and band simulator",
+  "description": "FestNet admin CLI, local trusted-backend worker and band simulator",
   "private": true,
   "scripts": {
     "admin": "tsx src/admin.ts",
+    "worker": "tsx src/worker.ts",
+    "process": "tsx src/worker.ts",
     "simulate": "tsx src/band-simulator.ts",
-    "process": "tsx src/health-processor.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

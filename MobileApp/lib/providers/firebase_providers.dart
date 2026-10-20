@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../repositories/attendee_repository.dart';
 import '../repositories/device_repository.dart';
 import '../repositories/user_repository.dart';
 import '../services/auth_service.dart';
@@ -14,5 +15,6 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) => DatabaseServi
 
 final userRepositoryProvider = Provider<UserRepository>((ref) => UserRepository(ref.watch(databaseServiceProvider)));
 
-final deviceRepositoryProvider =
-    Provider<DeviceRepository>((ref) => DeviceRepository(ref.watch(databaseServiceProvider)));
+final deviceRepositoryProvider = Provider<DeviceRepository>((ref) => DeviceRepository(ref.watch(databaseServiceProvider)));
+
+final attendeeRepositoryProvider = Provider<AttendeeRepository>((ref) => AttendeeRepository(ref.watch(databaseServiceProvider)));

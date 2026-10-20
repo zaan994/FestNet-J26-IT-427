@@ -21,8 +21,8 @@ class AuthScaffold extends StatelessWidget {
       body: Stack(
         children: [
           // Festival stage lights
-          const Positioned(top: -120, left: -100, child: _Glow(color: AppColors.violet, size: 340)),
-          const Positioned(bottom: -140, right: -120, child: _Glow(color: AppColors.magentaLight, size: 380)),
+          const Positioned(top: -120, left: -100, child: _Glow(color: AppColors.lightPrimary, size: 340)),
+          const Positioned(bottom: -140, right: -120, child: _Glow(color: AppColors.lightSecondary, size: 380)),
           SafeArea(
             child: Stack(
               children: [
@@ -55,7 +55,7 @@ class AuthScaffold extends StatelessWidget {
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            'Prototype — not a certified medical device',
+                            'Research prototype — not a medical device and not a diagnosis',
                             textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 11, color: context.festnet.muted),
                           ),

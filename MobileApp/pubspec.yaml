@@ -1,7 +1,7 @@
 name: festnet
-description: FestNet participant / volunteer app — festival health & safety wearable companion.
+description: FestNet attendee app — festival health & safety wearable companion (research prototype).
 publish_to: "none"
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ">=3.6.0 <4.0.0" # Flutter 3.27+ (Color.withValues, CardThemeData)
@@ -26,6 +26,9 @@ dependencies:
 
   # Settings (saved theme: light / night / system)
   shared_preferences: ^2.3.3
+
+  # Scanning the one-time claim QR code shown by event staff
+  mobile_scanner: ^6.0.2
 
 dev_dependencies:
   flutter_test:

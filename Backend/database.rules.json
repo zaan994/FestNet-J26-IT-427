@@ -5,78 +5,182 @@
     "festnet": {
       "config": {
         ".read": "auth != null",
-        ".write": "auth != null && root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser'"
+        ".write": "auth != null && root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true"
       },
 
-      "deviceAuth": {
-        "$authUid": {
-          ".read": "auth != null && (auth.uid === $authUid || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser')",
-          ".write": "auth != null && root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser'"
+      "roles": {
+        ".read": "auth != null && root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid"
         }
       },
 
-      "deviceIndex": {
-        ".read": "auth != null",
-        ".write": "auth != null && root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser'"
+      "eventStaff": {
+        "$eventId": {
+          ".read": "auth != null && (root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true || root.child('festnet/eventStaff/' + $eventId + '/' + auth.uid).exists())"
+        }
       },
 
-      "devices": {
-        ".read": "auth != null && (root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical')",
-        "$deviceId": {
-          ".read": "auth != null && (root.child('festnet/users/' + auth.uid + '/deviceId').val() === $deviceId || root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId)",
-          "latest": {
-            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
-          },
-          "raw": {
-            ".indexOn": ["seq", "serverTs"],
-            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
-          },
-          "history": {
-            ".indexOn": ["ts"],
-            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
-          },
-          "location": {
-            ".indexOn": ["ts"],
-            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
-          },
-          "meta": {
-            ".write": "auth != null && (root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser')",
-            "ownerUid": {
-              ".write": "auth != null && ((newData.val() === auth.uid && (!data.exists() || data.val() === auth.uid)) || (!newData.exists() && data.val() === auth.uid))"
-            }
-          }
+      "staffEvents": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid === $uid || root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true)"
         }
       },
 
       "users": {
-        ".read": "auth != null && (root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical')",
+        ".read": "auth != null && root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true",
         "$uid": {
           ".read": "auth != null && auth.uid === $uid",
-          ".write": "auth != null && (auth.uid === $uid || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser')",
-          "role": {
-            ".validate": "newData.isString() && ((!data.exists() && newData.val() === 'participant') || newData.val() === data.val() || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser')"
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['displayName']) || !newData.exists()",
+          "displayName": { ".validate": "newData.isString() && newData.val().length <= 80" },
+          "email": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "role": { ".validate": "newData.val() === data.val()" },
+          "$other": { ".validate": false }
+        }
+      },
+
+      "deviceAuth": {
+        "$authUid": {
+          ".read": "auth != null && (auth.uid === $authUid || root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true)"
+        }
+      },
+
+      "deviceIndex": {
+        ".read": "auth != null && root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true",
+        "$deviceId": {
+          ".read": "auth != null && (root.child('festnet/eventStaff/' + data.child('currentEventId').val() + '/' + auth.uid).exists() || root.child('festnet/attendeeLinks/' + auth.uid + '/deviceId').val() === $deviceId)"
+        }
+      },
+
+      "devices": {
+        "$deviceId": {
+          "latest": {
+            ".read": "auth != null && (root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId || root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true || root.child('festnet/eventStaff/' + root.child('festnet/deviceIndex/' + $deviceId + '/currentEventId').val() + '/' + auth.uid).exists() || root.child('festnet/attendeeLinks/' + auth.uid + '/deviceId').val() === $deviceId)",
+            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId",
+            ".validate": "newData.hasChildren(['deviceId']) && newData.child('deviceId').val() === $deviceId"
+          },
+          "raw": {
+            ".indexOn": ["seq", "serverTs"],
+            "$chunkId": {
+              ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId && !data.exists()",
+              ".validate": "newData.hasChildren(['seq', 't0UptimeMs', 'durationMs']) && newData.child('seq').isNumber()"
+            }
+          },
+          "meta": {
+            ".read": "auth != null && (root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId || root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true || root.child('festnet/eventStaff/' + root.child('festnet/deviceIndex/' + $deviceId + '/currentEventId').val() + '/' + auth.uid).exists())",
+            ".write": "auth != null && root.child('festnet/deviceAuth/' + auth.uid).val() === $deviceId"
+          },
+          "health": {
+            ".read": "auth != null && (root.child('festnet/eventStaff/' + root.child('festnet/deviceIndex/' + $deviceId + '/currentEventId').val() + '/' + auth.uid).exists() || root.child('festnet/attendeeLinks/' + auth.uid + '/deviceId').val() === $deviceId)"
           }
         }
       },
 
-      "alerts": {
-        ".read": "auth != null && (root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical' || root.child('festnet/users/' + auth.uid + '/role').val() === 'volunteer')",
-        ".indexOn": ["status", "deviceId", "serverCreatedAt"],
-        "$alertId": {
-          ".write": "auth != null && (root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical' || (!data.exists() && newData.child('deviceId').val() === root.child('festnet/deviceAuth/' + auth.uid).val()))"
-        }
-      },
-
       "events": {
-        ".read": "auth != null",
-        ".write": "auth != null && root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser'"
+        ".read": "auth != null && (root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true || root.child('festnet/roles/' + auth.uid + '/researchAdmin').val() === true)",
+        "$eventId": {
+          ".read": "auth != null && (root.child('festnet/eventStaff/' + $eventId + '/' + auth.uid).exists() || root.child('festnet/roles/' + auth.uid + '/researchAdmin').val() === true)"
+        }
       },
 
-      "wellness": {
-        "$uid": {
-          ".read": "auth != null && (auth.uid === $uid || root.child('festnet/users/' + auth.uid + '/role').val() === 'organiser' || root.child('festnet/users/' + auth.uid + '/role').val() === 'medical')",
-          ".write": "auth != null && auth.uid === $uid"
+      "eventsPublic": {
+        "$eventId": {
+          ".read": "auth != null"
         }
+      },
+
+      "participants": {
+        "$eventId": {
+          ".read": "auth != null && root.child('festnet/eventStaff/' + $eventId + '/' + auth.uid).exists()"
+        }
+      },
+
+      "assignments": {
+        ".indexOn": ["endedAt", "status", "eventId"],
+        "$assignmentId": {
+          ".read": "auth != null && (root.child('festnet/eventStaff/' + data.child('eventId').val() + '/' + auth.uid).exists() || root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true)"
+        }
+      },
+
+      "eventAssignments": {
+        "$eventId": {
+          ".indexOn": ["status", "startedAt"],
+          ".read": "auth != null && root.child('festnet/eventStaff/' + $eventId + '/' + auth.uid).exists()"
+        }
+      },
+
+      "attendeeLinks": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid"
+        }
+      },
+
+      "healthHistory": {
+        "$assignmentId": {
+          ".indexOn": ["ts"],
+          ".read": "auth != null && (root.child('festnet/eventStaff/' + root.child('festnet/assignments/' + $assignmentId + '/eventId').val() + '/' + auth.uid).exists() || root.child('festnet/attendeeLinks/' + auth.uid + '/assignmentId').val() === $assignmentId)"
+        }
+      },
+
+      "assignmentStats": {
+        "$assignmentId": {
+          ".read": "auth != null && (root.child('festnet/eventStaff/' + root.child('festnet/assignments/' + $assignmentId + '/eventId').val() + '/' + auth.uid).exists() || root.child('festnet/roles/' + auth.uid + '/researchAdmin').val() === true)"
+        }
+      },
+
+      "emergencies": {
+        "$eventId": {
+          ".indexOn": ["status", "createdAt", "type"],
+          ".read": "auth != null && (root.child('festnet/eventStaff/' + $eventId + '/' + auth.uid).exists() || ($eventId === '_unassigned' && root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true))"
+        }
+      },
+
+      "emergencyAudit": {
+        "$eventId": {
+          ".read": "auth != null && (root.child('festnet/eventStaff/' + $eventId + '/' + auth.uid).exists() || ($eventId === '_unassigned' && root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true))"
+        }
+      },
+
+      "commands": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$commandId": {
+            ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.exists()",
+            ".validate": "newData.hasChildren(['type', 'payload', 'createdAt']) && newData.child('type').isString() && newData.child('type').val().length <= 40 && newData.child('createdAt').val() === now && !newData.child('status').exists() && !newData.child('result').exists() && !newData.child('error').exists()"
+          }
+        }
+      },
+
+      "sosRequests": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$requestId": {
+            ".write": "auth != null && auth.uid === $uid && $requestId !== '_active' && !data.exists() && newData.exists()",
+            ".validate": "newData.hasChildren(['clientCreatedAt', 'createdAt']) && newData.child('clientCreatedAt').isNumber() && newData.child('createdAt').val() === now && !newData.child('status').exists() && !newData.child('alertId').exists()"
+          }
+        }
+      },
+
+      "claimRequests": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$requestId": {
+            ".write": "auth != null && auth.uid === $uid && !data.exists() && newData.exists()",
+            ".validate": "newData.hasChildren(['code', 'createdAt']) && newData.child('code').isString() && newData.child('code').val().length <= 40 && newData.child('createdAt').val() === now && !newData.child('status').exists()"
+          }
+        }
+      },
+
+      "auditLog": {
+        "$scope": {
+          ".read": "auth != null && (root.child('festnet/roles/' + auth.uid + '/deviceAdmin').val() === true || ($scope !== 'global' && root.child('festnet/eventStaff/' + $scope + '/' + auth.uid).val() === 'eventOperator'))"
+        }
+      },
+
+      "researchExports": {
+        ".read": "auth != null && root.child('festnet/roles/' + auth.uid + '/researchAdmin').val() === true"
       }
     }
   }

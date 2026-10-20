@@ -1,44 +1,75 @@
-/// Enums mirroring docs/database/schema.md (lowercase string values in RTDB).
+/// Enums mirroring Backend/functions/src/shared/schema.ts (lowercase/snake_case strings in RTDB).
 library;
 
-enum Role {
-  participant,
-  volunteer,
-  medical,
-  organiser;
+T _parse<T extends Enum>(List<T> values, Object? raw, String Function(T) key, T fallback) =>
+    values.firstWhere((v) => key(v) == raw, orElse: () => fallback);
 
-  static Role parse(Object? value) =>
-      Role.values.firstWhere((r) => r.name == value, orElse: () => Role.participant);
+/// Quality grade of a derived metric. `unavailable` means: do not show a number.
+enum MetricQuality {
+  valid('valid'),
+  lowQuality('low_quality'),
+  unavailable('unavailable');
+
+  const MetricQuality(this.key);
+  final String key;
+  static MetricQuality parse(Object? v) => _parse(values, v, (e) => e.key, MetricQuality.unavailable);
 }
 
-enum Severity {
-  none,
-  warning,
-  danger,
-  critical;
+enum ActivityLevel {
+  unknown('Unknown'),
+  rest('Rest'),
+  light('Light'),
+  moderate('Moderate'),
+  vigorous('Vigorous');
 
-  static Severity parse(Object? value) =>
-      Severity.values.firstWhere((s) => s.name == value, orElse: () => Severity.none);
-
-  String get label => this == Severity.none ? 'Normal' : name[0].toUpperCase() + name.substring(1);
+  const ActivityLevel(this.label);
+  final String label;
+  static ActivityLevel parse(Object? v) => _parse(values, v, (e) => e.name, ActivityLevel.unknown);
 }
 
-enum StressLevel {
-  unknown,
-  low,
-  medium,
-  high;
+enum HriStatus {
+  insufficientData('insufficient_data', 'Insufficient data'),
+  low('low', 'Low'),
+  elevated('elevated', 'Elevated'),
+  high('high', 'High');
 
-  static StressLevel parse(Object? value) =>
-      StressLevel.values.firstWhere((s) => s.name == value, orElse: () => StressLevel.unknown);
+  const HriStatus(this.key, this.label);
+  final String key;
+  final String label;
+  static HriStatus parse(Object? v) => _parse(values, v, (e) => e.key, HriStatus.insufficientData);
 }
 
-enum MotionState {
-  unknown,
-  active,
-  still,
-  fall;
+enum ConfidenceLevel {
+  none('None'),
+  low('Low'),
+  medium('Medium'),
+  high('High');
 
-  static MotionState parse(Object? value) =>
-      MotionState.values.firstWhere((s) => s.name == value, orElse: () => MotionState.unknown);
+  const ConfidenceLevel(this.label);
+  final String label;
+  bool get isLow => this == ConfidenceLevel.none || this == ConfidenceLevel.low;
+  static ConfidenceLevel parse(Object? v) => _parse(values, v, (e) => e.name, ConfidenceLevel.none);
+}
+
+enum EmergencyStatus {
+  open('open', 'Sent — waiting for staff'),
+  acknowledged('acknowledged', 'Staff acknowledged'),
+  inProgress('in_progress', 'Help is on the way'),
+  resolved('resolved', 'Resolved');
+
+  const EmergencyStatus(this.key, this.label);
+  final String key;
+  final String label;
+  static EmergencyStatus? tryParse(Object? v) => values.where((e) => e.key == v).firstOrNull;
+}
+
+/// Freshness from the time telemetry was RECEIVED, never from the band's `online` flag.
+enum Freshness {
+  live('Live'),
+  stale('Stale'),
+  offline('Offline'),
+  unknown('No recent data');
+
+  const Freshness(this.label);
+  final String label;
 }

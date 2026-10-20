@@ -1,6 +1,11 @@
-/// Formats a possibly-missing number: formatNumber(36.456, 1, '°C') -> '36.5°C', null -> '—'.
-String formatNumber(num? value, {int decimals = 0, String unit = ''}) {
-  if (value == null || value.isNaN || value.isInfinite) return '—';
+import '../../models/device_health.dart';
+import '../../models/enums.dart';
+
+const unavailable = 'Not available yet';
+
+/// Formats a possibly-missing number: formatNumber(36.456, decimals: 1, unit: ' °C') -> '36.5 °C'.
+String formatNumber(num? value, {int decimals = 0, String unit = '', String fallback = unavailable}) {
+  if (value == null || value.isNaN || value.isInfinite) return fallback;
   return '${value.toStringAsFixed(decimals)}$unit';
 }
 
@@ -11,5 +16,30 @@ String timeAgo(DateTime? time, {DateTime? now}) {
   if (diff.inSeconds < 3) return 'just now';
   if (diff.inSeconds < 60) return '${diff.inSeconds} s ago';
   if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-  return '${diff.inHours} h ago';
+  if (diff.inHours < 48) return '${diff.inHours} h ago';
+  return '${diff.inDays} d ago';
 }
+
+// ---- Display rules (same as the dashboard) ----
+
+/// Heart rate only when the backend graded it valid and the band is worn.
+String bpmText(DeviceHealth? h) {
+  if (h == null || !h.worn || h.heartRate.quality != MetricQuality.valid) return unavailable;
+  return formatNumber(h.heartRate.bpm, unit: ' bpm');
+}
+
+/// SpO2 is unvalidated: never shown unless the backend explicitly enables display.
+String spo2Text(DeviceHealth? h) {
+  if (h == null) return unavailable;
+  if (!h.spo2.displayEnabled) return 'Not validated';
+  // Shown only with good heart-rate signal; always labelled unvalidated (uncalibrated curve).
+  if (!h.worn || h.heartRate.quality != MetricQuality.valid) return unavailable;
+  return formatNumber(h.spo2.value, unit: ' % (unvalidated)');
+}
+
+String hrvText(DeviceHealth? h) {
+  if (h == null || h.hrv.quality != MetricQuality.valid) return unavailable;
+  return formatNumber(h.hrv.rmssdMs, unit: ' ms');
+}
+
+String surfaceTempText(double? c) => formatNumber(c, decimals: 1, unit: ' °C');

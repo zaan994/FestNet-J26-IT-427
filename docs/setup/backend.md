@@ -3,107 +3,90 @@
 Firebase project: **`festnetproject`** (RTDB `https://festnetproject-default-rtdb.firebaseio.com`).
 
 ## Prerequisites
-
 - Node.js 22
 - Firebase CLI: `npm install -g firebase-tools`, then `firebase login`
+- A service-account key for the scripts (Firebase console → Project settings → Service accounts →
+  *Generate new private key*) saved as `Backend/scripts/serviceAccount.json` (gitignored). **Never commit it.**
 
 ## Layout
-
 ```
 Backend/
-├── firebase.json            emulator + deploy config
-├── .firebaserc              default project = festnetproject
-├── database.rules.json      RTDB security rules (all components)
-├── functions/               Cloud Functions (TypeScript)
-│   └── src/
-│       ├── shared/          ← data contract: schema types, paths, thresholds, geo (pure TS)
-│       ├── config/          runtime config (region, DB instance)
-│       ├── repositories/    typed admin-SDK data access
-│       ├── triggers/        one file per component: health / alerts / crowd / wellness
-│       └── index.ts         exports all triggers
-└── scripts/                 admin CLI + band simulator (run locally)
+├── database.rules.json   RTDB security rules + indexes (roles, per-event isolation, request queues)
+├── functions/src/
+│   ├── shared/           data contract: schema, paths, thresholds, telemetry parser, HRI config
+│   ├── health/           C1 signal processing + processor + store
+│   ├── hri/              explainable HRI engine (pure)
+│   ├── services/         trusted services: events, devices, participants, assignments, claims,
+│   │                     emergencies, research export, roles, command executor, audit
+│   ├── triggers/         Cloud Functions wiring (health.ts, alerts.ts)
+│   └── config/runtime.ts region / DB instance / service context
+├── functions/test/       unit tests + emulator tests (rules, services)
+└── scripts/              admin CLI, local worker, band simulator
 ```
 
-## Admin CLI & simulator (`Backend/scripts`)
-
-```bash
-cd Backend/scripts
+## First-time setup (PowerShell)
+```powershell
+cd Backend\scripts
 npm install
-cp .env.example .env        # then set GOOGLE_APPLICATION_CREDENTIALS or the emulator hosts
-```
+Copy-Item .env.example .env          # GOOGLE_APPLICATION_CREDENTIALS=./serviceAccount.json
 
-Service account key: Firebase console → Project settings → Service accounts → *Generate new
-private key*. Save it as `Backend/scripts/serviceAccount.json` (gitignored). **Never commit it.**
-
-```bash
-npm run admin config                                          # thresholds + demo event
-npm run admin user email=you@x.com password=****** name=You role=organiser
-npm run admin device id=FESTNET_001 email=<band account email>
+npm run admin config                                             # thresholds + HRI config (experimental)
+npm run admin user email=you@example.com password=<choose> name=You
+npm run admin role email=you@example.com role=deviceAdmin       # global role
+npm run admin device id=FESTNET_001 email=<band account email>  # map the band's login to its device ID
+npm run admin migrate                                           # only if you used the foundation build
 npm run admin list
-
-npm run process                                               # C1 health processor (local)
-npm run simulate                                              # 3 healthy virtual bands
-npm run simulate bands=8 scenario=bpm-spike                   # band SIM_001 spikes after 20 s
-npm run simulate bands=10 scenario=crowd-walk                 # everyone walks east at ~1.8 m/s
 ```
+Then create events, register bands and grant event roles from the dashboard (Event & Devices,
+Access & Audit) or with `npm run admin staff email=... event=<eventId> role=eventOperator`.
 
-> **Use `key=value` options** — they work in every shell, including Windows PowerShell:
-> `npm run admin user email=you@x.com password=****** name=You role=organiser`
-> `npm run admin device id=FESTNET_001 email=<band account email>`
-> `npm run simulate bands=5 scenario=bpm-spike`   ·   `npm run process device=FESTNET_001`
-> (`npm run admin -- user --email ...` also works in Git Bash / cmd, but PowerShell swallows the
-> bare `--`, npm then eats the `--flags`, and the script reports `Missing email`.)
+> Use `key=value` options — they work in PowerShell (a bare `--` is swallowed by PowerShell).
 
-### C1 health processor (`npm run process`)
+## Running the trusted backend
 
-The band uploads only raw signals. `npm run process` turns each raw chunk into
-`devices/{id}/health`, `history` and `alerts`. It runs the same code as the `processRawChunk`
-Cloud Function, but on your machine, so you don't need the Blaze plan. Keep it running while you
-use the dashboard or app, and **don't run it while the Cloud Function is deployed** (both would
-process every chunk). It also deletes raw chunks older than 5 minutes.
+**Option A — without Blaze (local worker):**
+```powershell
+cd Backend\scripts
+npm run worker      # C1 processing + command / SOS / claim queues + device SOS. Keep it running.
+```
+**Option B — Blaze plan (Cloud Functions):**
+```powershell
+cd Backend\functions
+npm install
+npm run build
+firebase deploy --only functions
+```
+Run **one** of them. Dashboard actions show "No response from the FestNet backend" if neither runs.
 
-### Simulator
+| Function | Trigger |
+|---|---|
+| `processRawChunk` | new `devices/{id}/raw/{chunk}` (in order, `maxInstances: 1`) |
+| `pruneHealthHistory` | hourly |
+| `onCommandCreated` | new `commands/{uid}/{id}` |
+| `onSosRequestCreated` | new `sosRequests/{uid}/{id}` |
+| `onClaimRequested` | new `claimRequests/{uid}/{id}` |
+| `onDeviceSosPressed` | `devices/{id}/latest/sosPressCount` changed |
 
-The simulator writes exactly what the real band writes (`latest` + `raw`, with synthetic
-PPG / IMU / temperature signals). Run it together with `npm run process` (or the deployed
-function) to see computed health data.
-
-Scenarios: `normal | bpm-spike | heatstroke | low-spo2 | fall | sos | no-contact | crowd-walk`.
+## Demo data (DEMO ONLY)
+```powershell
+npm run admin demo email=you@example.com       # DEMO ONLY event, participants, SIM bands, you as operator
+npm run simulate bands=5 scenario=normal       # with the worker running
+npm run simulate bands=5 scenario=bpm-spike    # also: heatstroke, low-spo2, fall, sos, no-contact, crowd-walk
+```
+Demo events, bands and participants are flagged `demo: true` and labelled DEMO ONLY in both apps.
 
 ## Security rules
-
-```bash
+```powershell
 cd Backend
 firebase deploy --only database
 ```
+⚠ Before the first deploy: map every real band in `deviceAuth` (`npm run admin device ...`) and grant
+yourself `deviceAdmin`, otherwise the band cannot write and nobody can open the dashboard.
 
-⚠ **Before the first deploy**, run `npm run admin -- device ...` for every real band (see
-[firmware.md](firmware.md)) and create at least one organiser. Otherwise the band can no longer
-write, and nobody can open the dashboard.
-
-## Cloud Functions
-
-Cloud Functions require the **Blaze** (pay-as-you-go) plan. Without it, use `npm run process` for C1.
-
-```bash
-cd Backend/functions
+## Tests
+```powershell
+cd Backend\functions
 npm install
-npm run build
-npm test              # includes the C1 algorithm tests (synthetic signals)
-firebase deploy --only functions
+npm test                 # unit tests: telemetry parser, HRI engine, processor, workflow blockers
+npm run test:emulator    # needs Java + Firebase CLI: security rules + services against the RTDB emulator
 ```
-
-| Function | Component | Trigger |
-|---|---|---|
-| `processRawChunk` | C1 | every new `devices/{id}/raw/{chunk}`. Runs one at a time (`maxInstances: 1`) so chunks are processed in order |
-| `pruneHealthHistory` | C1 | hourly; deletes history older than 24 h |
-| `onAlertCreated` | C2 (stub) | every new `alerts/{id}` |
-
-## Local emulators (optional)
-
-```bash
-cd Backend
-firebase emulators:start          # Auth :9099, RTDB :9000, Functions :5001, UI :4000
-```
-
-Point the scripts at the emulators (`.env` option B), the dashboard with `VITE_USE_EMULATORS=true`.

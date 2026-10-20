@@ -51,7 +51,7 @@ export function LoginPage() {
         <form onSubmit={onSubmit} className="card space-y-5 p-8">
           <div>
             <h1 className="text-2xl font-bold">Welcome back</h1>
-            <p className="mt-1 text-sm text-muted">Organiser &amp; medical team sign-in</p>
+            <p className="mt-1 text-sm text-muted">Event staff sign-in (operators, medical responders, administrators)</p>
           </div>
 
           <label className="block space-y-1.5 text-sm">
@@ -71,7 +71,7 @@ export function LoginPage() {
           </label>
 
           {error && (
-            <p className="rounded-xl border border-severity-critical/30 bg-severity-critical/10 px-3 py-2 text-sm capitalize text-ink">
+            <p className="rounded-xl border border-status-critical/30 bg-status-critical/10 px-3 py-2 text-sm capitalize text-ink">
               ⚠ {error}
             </p>
           )}

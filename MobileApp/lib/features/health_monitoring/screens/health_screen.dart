@@ -1,309 +1,227 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_config.dart';
-import '../../../core/constants/thresholds.dart';
+import '../../../core/constants/labels.dart';
 import '../../../core/routing/app_router.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/device_health.dart';
+import '../../../models/device_latest.dart';
 import '../../../models/enums.dart';
 import '../../../providers/device_providers.dart';
 import '../../../shared/widgets/section_card.dart';
-import '../widgets/anomaly_banner.dart';
-import '../widgets/band_status_card.dart';
-import '../widgets/pulse_heart.dart';
-import '../widgets/stress_gauge.dart';
-import '../widgets/vital_card.dart';
+import '../../../shared/widgets/status_widgets.dart';
 
-/// C1 — Real-Time Health Monitoring (Rizvi M.Z.M.)
-///
-/// Live vitals of the paired band. The band uploads raw signals; the values shown here are
-/// computed by the backend (devices/{id}/health) and update every ~2 s.
+/// C1 — My Health (Rizvi M.Z.M.). Shows ONLY values derived by the trusted backend.
 class HealthScreen extends ConsumerWidget {
   const HealthScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final deviceId = ref.watch(pairedDeviceIdProvider);
-
+    final link = ref.watch(attendeeLinkProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Health'),
-        actions: [
-          if (deviceId != null)
-            IconButton(
-              tooltip: 'History',
-              icon: const Icon(Icons.show_chart),
-              onPressed: () => context.goNamed(Routes.healthAnalysis),
-            ),
-        ],
+      appBar: AppBar(title: const Text('My Health')),
+      body: link.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => const _Message(text:'Could not load your band link. Check your connection.'),
+        data: (l) => l == null
+            ? ListView(padding: const EdgeInsets.all(20), children: const [NotLinkedCard()])
+            : const _HealthBody(),
       ),
-      body: deviceId == null ? const _NoBand() : _LiveVitals(deviceId: deviceId),
     );
   }
 }
 
-class _NoBand extends StatelessWidget {
-  const _NoBand();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        SectionCard(
-          title: 'No band paired',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Pair your FestNet band to see your live health data.'),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => context.goNamed(Routes.pairDevice),
-                icon: const Icon(Icons.link),
-                label: const Text('Pair band'),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LiveVitals extends ConsumerWidget {
-  const _LiveVitals({required this.deviceId});
-
-  final String deviceId;
+class _HealthBody extends ConsumerWidget {
+  const _HealthBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final snapshotAsync = ref.watch(deviceSnapshotProvider(deviceId));
-    final healthAsync = ref.watch(deviceHealthProvider(deviceId));
     final now = ref.watch(clockProvider).valueOrNull ?? DateTime.now();
-
-    // Vibrate when the anomaly severity goes up.
-    ref.listen(deviceHealthProvider(deviceId), (previous, next) {
-      final before = previous?.valueOrNull?.anomaly.severity ?? Severity.none;
-      final after = next.valueOrNull?.anomaly.severity ?? Severity.none;
-      if (after.index > before.index) HapticFeedback.heavyImpact();
-    });
-
-    final snapshot = snapshotAsync.valueOrNull;
+    final snapshot = ref.watch(linkedSnapshotProvider).valueOrNull;
+    final healthAsync = ref.watch(linkedHealthProvider);
     final health = healthAsync.valueOrNull;
-    final online = snapshot?.isOnline(AppConfig.deviceOfflineAfter, now: now) ?? false;
-
-    if (snapshotAsync.isLoading && healthAsync.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    final lastSeen = snapshot?.lastSeenAt;
+    final freshness = freshnessOf(lastSeen, now);
 
     return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(deviceSnapshotProvider(deviceId));
-        ref.invalidate(deviceHealthProvider(deviceId));
-      },
+      onRefresh: () async => ref.invalidate(linkedHealthProvider),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
         children: [
-          if (online && health != null && health.anomaly.active) ...[
-            AnomalyBanner(anomaly: health.anomaly),
-            const SizedBox(height: 12),
-          ],
-          if (!online && snapshot?.receivedAt != null)
-            _InfoCard(
-              icon: Icons.cloud_off,
-              text: 'Band offline — last update ${timeAgo(snapshot!.receivedAt, now: now)}. Values below may be outdated.',
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            FreshnessChip(freshness: freshness, age: timeAgo(lastSeen, now: now)),
+            if (health != null && !health.worn) const StatusChip(label: 'Band not worn', icon: Icons.back_hand_outlined, tone: ChipTone.warning),
+            if (snapshot?.latest?.sosActive == true) const StatusChip(label: 'SOS active on band', icon: Icons.sos, tone: ChipTone.critical),
+          ]),
+          if (freshness == Freshness.stale || freshness == Freshness.offline) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Your band has not sent data recently. Values below may be out of date.',
+              style: TextStyle(color: context.festnet.warning, fontWeight: FontWeight.w600),
             ),
-          if (online && health != null && !health.worn)
-            const _InfoCard(icon: Icons.touch_app, text: 'Band is not touching your skin. Wear it snugly on your wrist.'),
-          if (health == null)
-            const _InfoCard(
-              icon: Icons.hourglass_empty,
-              text: 'Waiting for your health data… it appears a few seconds after the band starts sending.',
-            )
-          else
-            _VitalsGrid(health: health, dimmed: !online),
+          ],
           const SizedBox(height: 16),
-          if (snapshot != null) BandStatusCard(deviceId: deviceId, snapshot: snapshot),
+          if (healthAsync.hasError)
+            const _Message(text: 'Could not load your health data.')
+          else if (health == null)
+            const SectionCard(
+              title: 'Waiting for your first readings',
+              icon: Icons.hourglass_top,
+              child: Text('Values appear here once FestNet has processed data from your band. Keep the band snug on your wrist.'),
+            )
+          else ...[
+            _HriSummary(health: health),
+            const SizedBox(height: 16),
+            _Metrics(health: health, latest: snapshot?.latest),
+            const SizedBox(height: 16),
+            _DataQuality(flags: health.flags),
+          ],
+          const SizedBox(height: 16),
+          Text(
+            'FestNet is a research prototype, not a medical device. If you feel unwell, use SOS or go to a help point.',
+            style: TextStyle(fontSize: 12, color: context.festnet.muted),
+          ),
         ],
       ),
     );
   }
 }
 
-class _VitalsGrid extends StatelessWidget {
-  const _VitalsGrid({required this.health, required this.dimmed});
+class _HriSummary extends StatelessWidget {
+  const _HriSummary({required this.health});
 
   final DeviceHealth health;
-  final bool dimmed;
-
-  bool _has(String type) => health.anomaly.types.contains(type);
 
   @override
   Widget build(BuildContext context) {
-    final v = health.vitals;
-    final t = health.temperature;
-    final theme = Theme.of(context);
-
-    return Column(
-      children: [
-        // Heart rate hero
-        Opacity(
-          opacity: dimmed ? 0.5 : 1,
-          child: Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              gradient: AppColors.brandGradient,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(color: AppColors.violet.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 10)),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), shape: BoxShape.circle),
-                  child: PulseHeart(bpm: dimmed ? null : v.bpm, color: Colors.white, size: 48),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('HEART RATE',
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2)),
-                      Text.rich(
-                        TextSpan(
-                          text: formatNumber(v.bpm),
-                          style: theme.textTheme.displayMedium
-                              ?.copyWith(fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -1),
-                          children: [
-                            if (v.bpm != null)
-                              TextSpan(
-                                text: ' bpm',
-                                style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.85)),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        _has('bpm_spike')
-                            ? '⚠ Sudden rise in heart rate'
-                            : (health.worn ? 'Live from your FestNet band' : 'Band not touching your skin'),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: _has('bpm_spike') ? 1 : 0.85),
-                          fontWeight: _has('bpm_spike') ? FontWeight.w800 : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    final hri = health.hri;
+    return SectionCard(
+      title: 'Health Risk Indicator',
+      icon: Icons.insights,
+      trailing: TextButton(onPressed: () => context.goNamed(Routes.hri), child: const Text('Explain')),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(spacing: 8, runSpacing: 8, children: [HriChip(hri: hri), ConfidenceChip(level: hri.confidence)]),
+          const SizedBox(height: 10),
+          Text(
+            hri.score == null
+                ? 'Not enough good-quality data for an indicator right now. This does not mean low risk.'
+                : hri.confidence.isLow
+                    ? 'Data quality is poor, so this indicator is not reliable right now.'
+                    : '${hri.factors.length} contributing factor${hri.factors.length == 1 ? '' : 's'}. Tap Explain to see why.',
+            style: TextStyle(color: context.festnet.muted),
           ),
-        ),
-        const SizedBox(height: 14),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.15,
-          children: [
-            VitalCard(
-              icon: Icons.bloodtype_outlined,
-              label: 'Blood oxygen',
-              value: formatNumber(v.spo2),
-              unit: '%',
-              detail: 'Normal ≥ ${Thresholds.spo2Low}%',
-              alert: _has('low_spo2'),
-              dimmed: dimmed,
-            ),
-            VitalCard(
-              icon: Icons.thermostat,
-              label: 'Body temperature',
-              value: formatNumber(t.coreEstC, decimals: 1),
-              unit: '°C',
-              detail: 'Skin ${formatNumber(t.skinC, decimals: 1, unit: '°C')}',
-              alert: _has('high_temp'),
-              dimmed: dimmed,
-            ),
-            VitalCard(
-              icon: Icons.monitor_heart_outlined,
-              label: 'Heart-rate variability',
-              value: formatNumber(v.rmssdMs),
-              unit: 'ms',
-              detail: 'RMSSD · ${v.ibiCount} beats',
-              dimmed: dimmed,
-            ),
-            VitalCard(
-              icon: _motionIcon(health.motion.state),
-              label: 'Movement',
-              value: _motionLabel(health.motion.state),
-              detail: health.motion.stillSec > 0 ? 'Still for ${health.motion.stillSec} s' : null,
-              alert: _has('fall') || _has('stillness'),
-              dimmed: dimmed,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Opacity(
-          opacity: dimmed ? 0.5 : 1,
-          child: StressGauge(
-            score: v.stressScore,
-            level: v.stressLevel,
-            baselineReady: v.baselineReady,
-            rmssdMs: v.rmssdMs,
-          ),
-        ),
-      ],
-    );
-  }
-
-  static IconData _motionIcon(MotionState s) => switch (s) {
-        MotionState.fall => Icons.personal_injury_outlined,
-        MotionState.still => Icons.airline_seat_flat_outlined,
-        MotionState.active => Icons.directions_walk,
-        MotionState.unknown => Icons.help_outline,
-      };
-
-  static String _motionLabel(MotionState s) => switch (s) {
-        MotionState.fall => 'Fall!',
-        MotionState.still => 'Still',
-        MotionState.active => 'Moving',
-        MotionState.unknown => '—',
-      };
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: SectionCard(
-        child: Row(
-          children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 12),
-            Expanded(child: Text(text)),
-          ],
-        ),
+          const SizedBox(height: 10),
+          const ExperimentalBanner(text: 'Experimental research indicator — not a diagnosis.'),
+        ],
       ),
     );
   }
+}
+
+class _Metrics extends StatelessWidget {
+  const _Metrics({required this.health, required this.latest});
+
+  final DeviceHealth health;
+  final DeviceLatest? latest;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiles = [
+      MetricTile(
+        label: 'Heart rate',
+        value: bpmText(health),
+        icon: Icons.favorite_outline,
+        info: 'Calculated by FestNet from your band\'s pulse sensor. Shown only when the signal quality is good. '
+            'It is a prototype measurement, not a medical reading.',
+      ),
+      MetricTile(
+        label: 'Surface temperature',
+        value: surfaceTempText(health.temperature.surfaceC ?? latest?.surfaceC),
+        icon: Icons.thermostat,
+        caption: 'Skin/band surface — not body temperature',
+        info: 'Measured by an infrared sensor at the band. Sun, sweat and how the band sits all affect it. '
+            'It is NOT your core body temperature.',
+      ),
+      MetricTile(
+        label: 'Movement',
+        value: health.activity.level.label,
+        icon: Icons.directions_walk,
+        caption: health.activity.impactDetected ? 'Possible impact detected' : null,
+      ),
+      MetricTile(
+        label: 'Heart-rate variability',
+        value: hrvText(health),
+        icon: Icons.monitor_heart_outlined,
+        info: 'Variation between heartbeats (RMSSD) over the last minute. Needs a steady, good-quality signal.',
+      ),
+      MetricTile(
+        label: 'SpO2',
+        value: spo2Text(health),
+        icon: Icons.bloodtype_outlined,
+        info: 'Blood-oxygen estimates from this prototype have not been validated against a medical pulse oximeter, so they are not shown.',
+      ),
+      MetricTile(
+        label: 'Air temperature',
+        value: surfaceTempText(health.temperature.ambientC ?? latest?.ambientC),
+        icon: Icons.wb_sunny_outlined,
+        caption: 'Near the band',
+      ),
+    ];
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.25,
+      children: tiles,
+    );
+  }
+}
+
+class _DataQuality extends StatelessWidget {
+  const _DataQuality({required this.flags});
+
+  final List<String> flags;
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'Signal quality',
+      icon: Icons.network_check,
+      child: flags.isEmpty
+          ? const Text('✓ Good signal in the latest reading.')
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final f in flags)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(children: [
+                      Icon(Icons.error_outline, size: 16, color: context.festnet.warning),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(flagLabel(f))),
+                    ]),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class _Message extends StatelessWidget {
+  const _Message({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(text, style: TextStyle(color: context.festnet.critical)),
+      );
 }

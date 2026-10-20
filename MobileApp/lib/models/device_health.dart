@@ -1,181 +1,192 @@
 import 'enums.dart';
 import 'json_utils.dart';
 
-/// devices/{deviceId}/health — vitals and anomaly state computed by the C1 backend
-/// processor from the band's raw signals. Mirrors `DeviceHealth` in
-/// Backend/functions/src/shared/schema.ts.
+/// devices/{deviceId}/health — derived by the trusted backend from raw chunks.
+/// The app never computes health values itself.
 class DeviceHealth {
   const DeviceHealth({
     required this.deviceId,
-    required this.seq,
-    required this.ts,
     required this.worn,
-    required this.vitals,
+    required this.heartRate,
+    required this.spo2,
+    required this.hrv,
     required this.temperature,
-    required this.motion,
-    required this.anomaly,
-    this.perfusionIndex,
-    this.beatsInChunk = 0,
-    this.processingMs,
+    required this.activity,
+    required this.flags,
+    required this.hri,
+    this.assignmentId,
+    this.computedAt,
+    this.measuredAt,
   });
 
   final String deviceId;
-  final int seq;
-  final DateTime ts;
+  final String? assignmentId;
+  final DateTime? computedAt;
+  final DateTime? measuredAt;
   final bool worn;
-  final HealthVitals vitals;
-  final HealthTemperature temperature;
-  final HealthMotion motion;
-  final HealthAnomaly anomaly;
-  final double? perfusionIndex;
-  final int beatsInChunk;
-  final int? processingMs;
+  final HeartRate heartRate;
+  final Spo2 spo2;
+  final Hrv hrv;
+  final SurfaceTemperature temperature;
+  final Activity activity;
+  final List<String> flags;
+  final HriResult hri;
 
   factory DeviceHealth.fromMap(Map<String, dynamic> m) {
-    final signal = asMap(m['signal']);
+    final hr = asMap(m['heartRate']);
+    final sp = asMap(m['spo2']);
+    final hv = asMap(m['hrv']);
+    final t = asMap(m['temperature']);
+    final a = asMap(m['activity']);
     return DeviceHealth(
       deviceId: asString(m['deviceId']) ?? '',
-      seq: asInt(m['seq']) ?? 0,
-      ts: DateTime.fromMillisecondsSinceEpoch(asInt(m['ts']) ?? 0),
-      worn: asBool(m['worn']),
-      vitals: HealthVitals.fromMap(asMap(m['vitals'])),
-      temperature: HealthTemperature.fromMap(asMap(m['temperature'])),
-      motion: HealthMotion.fromMap(asMap(m['motion'])),
-      anomaly: HealthAnomaly.fromMap(asMap(m['anomaly'])),
-      perfusionIndex: asDouble(signal['perfusionIndex']),
-      beatsInChunk: asInt(signal['beatsInChunk']) ?? 0,
-      processingMs: asInt(asMap(m['latency'])['processingMs']),
+      assignmentId: asString(m['assignmentId']),
+      computedAt: asEpoch(m['computedAt']),
+      measuredAt: asEpoch(m['measuredAt']),
+      worn: m['worn'] == true,
+      heartRate: HeartRate(bpm: asDouble(hr['bpm'], min: 20, max: 250), quality: MetricQuality.parse(hr['quality'])),
+      spo2: Spo2(
+        value: asDouble(sp['value'], min: 50, max: 100),
+        quality: MetricQuality.parse(sp['quality']),
+        // Display only if the backend explicitly enables it; it is never validated.
+        displayEnabled: sp['displayEnabled'] == true,
+      ),
+      hrv: Hrv(rmssdMs: asDouble(hv['rmssdMs'], min: 0, max: 500), quality: MetricQuality.parse(hv['quality'])),
+      temperature: SurfaceTemperature(
+        surfaceC: asDouble(t['surfaceC'], min: -20, max: 80),
+        ambientC: asDouble(t['ambientC'], min: -40, max: 85),
+      ),
+      activity: Activity(
+        level: ActivityLevel.parse(a['level']),
+        stillSec: asInt(a['stillSec']) ?? 0,
+        impactDetected: a['impactDetected'] == true,
+      ),
+      flags: asStringList(asMap(m['signal'])['flags']),
+      hri: HriResult.fromMap(asMap(m['hri'])),
     );
   }
 }
 
-class HealthVitals {
-  const HealthVitals({
-    this.bpm,
-    this.spo2,
-    this.rmssdMs,
-    this.sdnnMs,
-    this.ibiCount = 0,
-    this.stressScore,
-    this.stressLevel = StressLevel.unknown,
-    this.baselineReady = false,
-  });
-
+class HeartRate {
+  const HeartRate({required this.quality, this.bpm});
   final double? bpm;
-  final double? spo2;
+  final MetricQuality quality;
+}
+
+class Spo2 {
+  const Spo2({required this.quality, required this.displayEnabled, this.value});
+  final double? value;
+  final MetricQuality quality;
+  final bool displayEnabled;
+}
+
+class Hrv {
+  const Hrv({required this.quality, this.rmssdMs});
   final double? rmssdMs;
-  final double? sdnnMs;
-  final int ibiCount;
-  final double? stressScore;
-  final StressLevel stressLevel;
-  final bool baselineReady;
-
-  factory HealthVitals.fromMap(Map<String, dynamic> m) {
-    final hrv = asMap(m['hrv']);
-    final stress = asMap(m['stress']);
-    return HealthVitals(
-      bpm: asDouble(m['bpm']),
-      spo2: asDouble(m['spo2']),
-      rmssdMs: asDouble(hrv['rmssdMs']),
-      sdnnMs: asDouble(hrv['sdnnMs']),
-      ibiCount: asInt(hrv['ibiCount']) ?? 0,
-      stressScore: asDouble(stress['score']),
-      stressLevel: StressLevel.parse(stress['level']),
-      baselineReady: asBool(stress['baselineReady']),
-    );
-  }
+  final MetricQuality quality;
 }
 
-class HealthTemperature {
-  const HealthTemperature({this.skinC, this.ambientC, this.coreEstC});
+class SurfaceTemperature {
+  const SurfaceTemperature({this.surfaceC, this.ambientC});
 
-  final double? skinC;
+  /// MLX90614 object temperature = skin/band SURFACE temperature, not core body temperature.
+  final double? surfaceC;
   final double? ambientC;
-  final double? coreEstC;
-
-  factory HealthTemperature.fromMap(Map<String, dynamic> m) => HealthTemperature(
-        skinC: asDouble(m['skinC']),
-        ambientC: asDouble(m['ambientC']),
-        coreEstC: asDouble(m['coreEstC']),
-      );
 }
 
-class HealthMotion {
-  const HealthMotion({this.magG, this.state = MotionState.unknown, this.stillSec = 0});
-
-  final double? magG;
-  final MotionState state;
+class Activity {
+  const Activity({required this.level, required this.stillSec, required this.impactDetected});
+  final ActivityLevel level;
   final int stillSec;
+  final bool impactDetected;
+}
 
-  factory HealthMotion.fromMap(Map<String, dynamic> m) => HealthMotion(
-        magG: asDouble(m['magG']),
-        state: MotionState.parse(m['state']),
-        stillSec: asInt(m['stillSec']) ?? 0,
+class HriFactor {
+  const HriFactor({required this.ruleId, required this.label, required this.points, required this.detail});
+  final String ruleId;
+  final String label;
+  final int points;
+  final String detail;
+
+  factory HriFactor.fromMap(Map<String, dynamic> m) => HriFactor(
+        ruleId: asString(m['ruleId']) ?? '',
+        label: asString(m['label']) ?? '',
+        points: asInt(m['points']) ?? 0,
+        detail: asString(m['detail']) ?? '',
       );
 }
 
-class HealthAnomaly {
-  const HealthAnomaly({this.active = false, this.severity = Severity.none, this.types = const [], this.since});
+/// Experimental, unvalidated Health Risk Indicator. A null score means "not enough valid
+/// data" — it never means low risk.
+class HriResult {
+  const HriResult({
+    required this.status,
+    required this.confidence,
+    required this.confidenceValue,
+    required this.factors,
+    required this.availableInputs,
+    required this.missingInputs,
+    required this.flags,
+    required this.baselineAvailable,
+    this.score,
+    this.calculatedAt,
+  });
 
-  final bool active;
-  final Severity severity;
-  final List<String> types;
-  final DateTime? since;
+  final int? score;
+  final HriStatus status;
+  final ConfidenceLevel confidence;
+  final double confidenceValue;
+  final DateTime? calculatedAt;
+  final List<HriFactor> factors;
+  final List<String> availableInputs;
+  final List<String> missingInputs;
+  final List<String> flags;
+  final bool baselineAvailable;
 
-  factory HealthAnomaly.fromMap(Map<String, dynamic> m) {
-    final sinceMs = asInt(m['since']);
-    return HealthAnomaly(
-      active: asBool(m['active']),
-      severity: Severity.parse(m['severity']),
-      types: asStringList(m['types']),
-      since: sinceMs == null ? null : DateTime.fromMillisecondsSinceEpoch(sinceMs),
+  factory HriResult.fromMap(Map<String, dynamic> m) {
+    final conf = asMap(m['confidence']);
+    final dq = asMap(m['dataQuality']);
+    final rawFactors = m['contributingFactors'];
+    final factorMaps = rawFactors is List ? rawFactors : (rawFactors is Map ? rawFactors.values.toList() : const []);
+    return HriResult(
+      score: asInt(m['hriScore'], min: 0, max: 100),
+      status: HriStatus.parse(m['status']),
+      confidence: ConfidenceLevel.parse(conf['level']),
+      confidenceValue: asDouble(conf['value'], min: 0, max: 1) ?? 0,
+      calculatedAt: asEpoch(m['calculatedAt']),
+      factors: factorMaps.map((f) => HriFactor.fromMap(asMap(f))).toList(),
+      availableInputs: asStringList(m['availableInputs']),
+      missingInputs: asStringList(m['missingInputs']),
+      flags: asStringList(dq['flags']),
+      baselineAvailable: m['baselineAvailable'] == true,
     );
   }
 }
 
-/// devices/{deviceId}/history/{pushId} — computed snapshot every 10 s.
+/// healthHistory/{assignmentId}/{pushId} — compact 10-s snapshot of the current assignment.
 class HistoryPoint {
-  const HistoryPoint({
-    required this.ts,
-    this.bpm,
-    this.spo2,
-    this.rmssdMs,
-    this.stressScore,
-    this.coreEstC,
-    this.motionState = MotionState.unknown,
-    this.severity = Severity.none,
-    this.worn = false,
-  });
+  const HistoryPoint({required this.ts, required this.bpmQuality, required this.hriStatus, this.bpm, this.hriScore, this.surfaceC});
 
   final DateTime ts;
   final double? bpm;
-  final double? spo2;
-  final double? rmssdMs;
-  final double? stressScore;
-  final double? coreEstC;
-  final MotionState motionState;
-  final Severity severity;
-  final bool worn;
+  final MetricQuality bpmQuality;
+  final int? hriScore;
+  final HriStatus hriStatus;
+  final double? surfaceC;
 
-  factory HistoryPoint.fromMap(Map<String, dynamic> m) => HistoryPoint(
-        ts: DateTime.fromMillisecondsSinceEpoch(asInt(m['ts']) ?? 0),
-        bpm: asDouble(m['bpm']),
-        spo2: asDouble(m['spo2']),
-        rmssdMs: asDouble(m['rmssdMs']),
-        stressScore: asDouble(m['stressScore']),
-        coreEstC: asDouble(m['coreEstC']),
-        motionState: MotionState.parse(m['motionState']),
-        severity: Severity.parse(m['severity']),
-        worn: asBool(m['worn']),
-      );
+  /// Heart rate for charts: only valid readings.
+  double? get validBpm => bpmQuality == MetricQuality.valid ? bpm : null;
+
+  static HistoryPoint? fromMap(Map<String, dynamic> m) {
+    final ts = asEpoch(m['ts']);
+    if (ts == null) return null;
+    return HistoryPoint(
+      ts: ts,
+      bpm: asDouble(m['bpm'], min: 20, max: 250),
+      bpmQuality: MetricQuality.parse(m['bpmQuality']),
+      hriScore: asInt(m['hriScore'], min: 0, max: 100),
+      hriStatus: HriStatus.parse(m['hriStatus']),
+      surfaceC: asDouble(m['surfaceC'], min: -20, max: 80),
+    );
+  }
 }
-
-/// Human-readable anomaly names (schema: anomaly.types).
-const anomalyLabels = <String, String>{
-  'bpm_spike': 'Heart-rate spike',
-  'low_spo2': 'Low blood oxygen',
-  'high_temp': 'High body temperature',
-  'stillness': 'No movement',
-  'fall': 'Fall detected',
-  'sos': 'SOS pressed',
-};

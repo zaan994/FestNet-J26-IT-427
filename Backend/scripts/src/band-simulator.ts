@@ -135,10 +135,10 @@ function paramsFor(band: SimBand, index: number, elapsedSec: number): SyntheticP
 function buildLatest(band: SimBand, chunk: RawChunk, now: number) {
   const imu = chunk.imu!;
   const ppg = chunk.ppg!;
-  const last = (xs: number[] | undefined) => (xs && xs.length ? xs[xs.length - 1] : 0);
+  const last = (xs: readonly (number | null)[] | undefined) => (xs && xs.length ? xs[xs.length - 1] : null);
   return {
     deviceId: band.id,
-    fwVersion: "sim-0.3.0",
+    fwVersion: "sim-0.3.1-DEMO",
     online: true,
     ts: now,
     serverTs: SERVER_TIMESTAMP,
@@ -163,23 +163,37 @@ function buildLatest(band: SimBand, chunk: RawChunk, now: number) {
       altitudeM: 12,
       hdop: 1.1,
     },
+    battery: { pct: null },
     net: { transport: "wifi", rssi: Math.round(rand(-75, -50)) },
-    raw: { enabled: true, lastSeq: chunk.seq, pendingChunks: 0, droppedChunks: 0, ppgOverflowTotal: 0 },
+    raw: {
+      enabled: true,
+      lastSeq: chunk.seq,
+      pendingChunks: 0,
+      droppedChunks: 0,
+      ppgOverflowTotal: 0,
+      lastChunkPpgSamples: ppg.n,
+      lastChunkImuSamples: imu.n,
+      lastChunkDurationMs: chunk.durationMs,
+    },
   };
 }
 
 async function main() {
   console.log(`[simulator] target=${target} bands=${bandCount} scenario=${scenario} onset=${onsetSec}s`);
-  console.log("Health values appear only while the C1 processor runs (npm run process, or the Cloud Function).");
+  console.log("DEMO ONLY synthetic data. Health appears only while the backend runs (npm run worker, or the Cloud Functions),");
+  console.log("and only for SIM bands assigned to a participant in the dashboard.");
   const bands = Array.from({ length: bandCount }, (_, i) => createBand(i));
   const startedAt = Date.now();
   let chunksSent = 0;
 
   await Promise.all(
     bands.flatMap((b) => [
-      db.ref(paths.deviceIndexEntry(b.id)).update({ label: `Simulated ${b.id}`, addedAt: b.bootMs }),
+      // Register as DEMO inventory if new; never overwrite an existing assignment.
+      db.ref(paths.deviceIndexEntry(b.id)).transaction((current: Record<string, unknown> | null) =>
+        current ?? { label: `DEMO ${b.id}`, addedAt: b.bootMs, inventoryStatus: "available", demo: true, updatedAt: b.bootMs },
+      ),
       db.ref(paths.deviceMeta(b.id)).update({
-        fwVersion: "sim-0.3.0", label: `Simulated ${b.id}`, eventId: "demo-event", lastBootTs: b.bootMs,
+        fwVersion: "sim-0.3.1-DEMO", label: `DEMO ${b.id}`, lastBootTs: b.bootMs, lastBootServerTs: b.bootMs,
         rawPpgFs: 100, rawImuFs: 50, rawChunkMs: CHUNK_MS,
       }),
     ]),

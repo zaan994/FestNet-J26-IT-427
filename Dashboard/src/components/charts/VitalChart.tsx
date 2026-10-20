@@ -19,7 +19,7 @@ const SERIES = "rgb(var(--brand))";
 const GRID = "rgb(var(--chart-grid))";
 const AXIS = "rgb(var(--chart-axis))";
 const SURFACE = "rgb(var(--surface))";
-const THRESHOLD = "#E11D48"; // status: critical
+const THRESHOLD = "rgb(var(--status-critical))";
 
 export interface Threshold {
   value: number;

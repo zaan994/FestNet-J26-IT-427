@@ -1,109 +1,154 @@
-# Component 1 — Real-Time Health Monitoring: method
+# Component 1 — Real-Time Health Monitoring: method and evaluation plan
 
 Owner: Rizvi M.Z.M. (IT23305564)
 
-This document describes how FestNet turns raw wearable signals into vitals and anomaly alerts.
-Code: `Backend/functions/src/health/` (one module per step, each with a header comment).
+> **Status: research prototype.** Nothing in this component is clinically validated. The Health
+> Risk Indicator (HRI) is an *experimental, explainable* indicator for research. It is **not** a
+> diagnosis and must never replace assessment by medical staff. No accuracy figures are claimed in
+> this document; §6 describes how they will be measured.
+
+Code: `Backend/functions/src/health/` (signal processing), `Backend/functions/src/hri/engine.ts`
+(HRI), `Backend/functions/src/shared/hriConfig.ts` (all HRI numbers), tests in
+`Backend/functions/test/`.
 
 ## 1. Pipeline
 
 ```
-Band (ESP32)                          Backend (Cloud Function `processRawChunk` / `npm run process`)
-───────────────                       ────────────────────────────────────────────────────────────
-MAX30102  PPG red/IR 100 Hz ┐         ┌─ ppg.ts      contact → detrend → beats → perfusion index, SpO2
-MPU6050   accel/gyro 50 Hz  ├─ raw ──►│  heart.ts    beat intervals → BPM, HRV (RMSSD/SDNN), stress
-MLX90614  skin temp 1 Hz    ┘ chunk   │  motion.ts   fall (free-fall → impact), stillness
-          every 2 s                   │  anomaly.ts  TAF rules + multi-signal severity + hysteresis
-                                      └─ processor.ts → devices/{id}/health, history, alerts
+Band (ESP32, firmware v0.3.1) — sensing only        Trusted backend (Cloud Function processRawChunk
+                                                     or `npm run worker` — identical code)
+MAX30102 PPG red/IR 100 Hz ┐                         ┌─ ppg.ts       contact, detrend, beats, perfusion, saturation
+MPU6050  accel/gyro 50 Hz  ├─ raw chunk every ~2 s ─►│  heart.ts     beat intervals → BPM (+quality), HRV (guarded)
+MLX90614 object/ambient    ┘  + latest every ~2 s    │  motion.ts    activity level, possible impact, stillness
+                                                     │  processor.ts data-quality flags, baseline, HRI, history, stats
+                                                     │  engine.ts    explainable HRI (rules + separate confidence)
+                                                     └─ store.ts     → devices/{id}/health, healthHistory/{assignmentId},
+                                                                       assignmentStats/{assignmentId}, emergencies (HRI P2)
 ```
 
-Processing state (signal tails, beat intervals, baselines, timers) is kept between chunks in
-`festnet/processing/{deviceId}`, so each 2-second chunk is analysed with its context.
+* The band performs **no** health calculations. The dashboard and app only **read** backend output.
+* Processing state is kept per band in `processing/{deviceId}` and is **reset whenever the active
+  assignment changes**, so baselines and history never mix two wearers or two events.
+* Raw chunks are deleted after 5 minutes; derived history is kept per assignment (30-day pruning).
 
-## 2. Algorithms
+## 2. Signal processing
 
-### Heart rate
-1. **Contact:** median IR ≥ 50 000 counts. Otherwise the band is "not worn" and no vitals are reported.
-2. **Detrend:** subtract a 0.75 s centred moving average. This removes the DC level, breathing and slow motion drift.
-3. **Invert:** blood volume rises at systole, so IR counts *dip*. The detrended signal is inverted so beats become peaks.
-4. **Smooth:** 50 ms moving average.
-5. **Peak detection:** local maxima above 50 % of the 95th percentile of the window. The refractory period is max(300 ms, ½ × previous interval), and the stronger peak wins inside it.
-6. **Chunk boundaries:** the previous chunk's last 2 s are prepended, and beats are accepted with a 200 ms delay. A peak at a chunk edge is therefore judged with both neighbours, and is neither missed nor counted twice.
-7. **Artefact rejection:** an inter-beat interval (IBI) is rejected if it lies outside 300–2000 ms (30–200 bpm), or deviates more than 30 % from the median of the last 5. After 4 consecutive rejections, the history is reset (re-lock).
-8. **BPM** = 60 000 / median(last 8 accepted IBIs). It is unknown if there are fewer than 4 IBIs or no beat for 4 s.
+### 2.1 Heart rate (MAX30102 IR)
+1. **Contact:** median IR ≥ 50 000 counts, otherwise `not_worn` — no physiological values are produced.
+2. **Detrend** (0.75 s centred moving average), **invert** (systolic dip → peak), **smooth** (50 ms).
+3. **Peaks:** local maxima above 50 % of the 95th percentile; refractory max(300 ms, ½ previous IBI).
+   The previous chunk's tail is prepended so beats at chunk edges are neither missed nor double-counted.
+4. **Artefact rejection:** IBI outside 300–2000 ms or > 30 % from the median of the last 5 is rejected.
+5. **BPM** = 60 000 / median(last 8 accepted IBIs).
+6. **Quality grade** (`valid | low_quality | unavailable`), using the constants in `health/config.ts`:
+   sample completeness ≥ 90 %, perfusion index ≥ 0.1 %, beat acceptance ≥ 70 %, no saturation, not
+   vigorous motion. **Only `valid` BPM is displayed** anywhere; otherwise the UI shows "Unavailable".
 
-### SpO2
-Ratio of ratios over the 4-s window (current + previous chunk):
-R = (AC_red / DC_red) / (AC_ir / DC_ir), where AC = standard deviation of the detrended signal and DC = mean.
-Then SpO2 = −45.060·R² + 30.354·R + 94.845, the empirical curve commonly used with MAX3010x sensors.
-The result is only accepted for 0.3 ≤ R ≤ 1.6 with a valid heart rate, then exponentially smoothed (α = 0.3).
-**This curve is not calibrated for this enclosure.** Validate against a reference pulse oximeter (§4).
+Raw red/IR counts in `latest.pulseRaw` are ADC counts and are never presented as BPM or SpO2.
 
-### HRV and stress
-- **RMSSD**: root mean square of successive IBI differences over 60 s. Only pairs of consecutive *accepted* beats are used.
-- **SDNN**: standard deviation of the IBIs over 60 s. Needs at least 10 beats.
-- **Stress score (0–100):** 0.7 × HRV part + 0.3 × heart-rate part.
-    - HRV part = (clamp(1 − RMSSD/RMSSD_baseline, −1, 1) + 1) / 2 × 100, so 50 = at baseline.
-    - Heart-rate part = clamp((BPM − BPM_baseline) / 40, 0, 1) × 100.
-    - The baseline is the mean over the first 2 minutes of valid wear. Until then a population reference is used (RMSSD 42 ms, 75 bpm).
-    - Levels: < 40 low, < 65 medium, otherwise high.
-    - It is a heuristic for *relative* change, not a clinical stress measure.
+### 2.2 HRV
+RMSSD/SDNN over the last 60 s from **consecutive accepted** beats only. Guards: ≥ 10 IBIs, ≥ 8
+consecutive pairs, span ≥ 30 s; otherwise HRV is `unavailable`. IBIs across a PPG FIFO overflow are
+discarded.
 
-### Temperature
-The MLX90614 measures **skin** temperature (≈ 33–35 °C at the wrist). It is exponentially smoothed
-(α = 0.3), and core temperature is estimated as skin + `skinToCoreOffsetC` (default 3.5 °C, set
-in `config/thresholds`). The estimate is only reported while the band is worn. Calibrate the offset
-against a clinical thermometer for the final enclosure.
+### 2.3 SpO2
+The ratio-of-ratios estimate is computed but **uncalibrated and unvalidated** for this enclosure.
+`config/hri.spo2.displayEnabled = false` and `useInHri = false` by default, so SpO2 is neither shown
+("Not validated") nor used in the HRI.
 
-### Motion
-- **Fall:** |a| < 0.5 g for ≥ 60 ms (free-fall), followed within 1 s by |a| > 2.5 g (impact). The free-fall run length is carried across chunks. A fall stays active until movement resumes, and for at least 10 s.
-- **Stillness:** within a 2-s chunk, std(|a|) < 0.02 g and peak gyro < 10 °/s. The still time accumulates across chunks.
+### 2.4 Temperature
+MLX90614 *object* temperature is reported as **surface temperature** (`surfaceC`) — skin/band
+surface influenced by sun, sweat and fit. **It is not core body temperature** and no core estimate
+is produced. Ambient temperature is the sensor-body temperature near the band (context only).
 
-### Anomaly detection (TAF thresholds)
-| Type | Rule (band must be worn) |
-|---|---|
-| `bpm_spike` | BPM − min(BPM over last 90 s) > 30 |
-| `low_spo2` | SpO2 < 94 % for 10 s |
-| `high_temp` | estimated core > 38 °C for 5 s |
-| `stillness` | no movement for 30 s |
-| `fall` | free-fall + impact (worn within the last 10 s) |
+### 2.5 Motion
+|a| at 50 Hz → activity level by std(|a|) per chunk (`rest < 0.02 g ≤ light < 0.08 g ≤ moderate < 0.25 g ≤ vigorous`).
+Possible impact = free-fall (< 0.5 g ≥ 60 ms) followed within 1 s by > 2.5 g. Stillness accumulates
+across chunks. "Possible impact" is never called a fall diagnosis.
 
-**Severity (multi-signal correlation):**
-- 1 active type = warning, 2 = danger, 3 or more = critical.
-- A fall is at least danger.
-- A fall plus stillness = critical.
-- SpO2 < 90 % for 10 s = critical.
+### 2.6 Data-quality flags
+Each chunk is checked for: `not_worn, sensor_missing_ppg/imu/temperature, ppg/imu_samples_low,
+ppg_fifo_overflow, chunk_gap, dropped_chunks_increased, low_perfusion, beat_detection_unstable,
+motion_artifact_risk, clock_not_synced, delayed_chunk (> 10 s), ppg_saturation`. Flags are shown to
+staff and attendees in plain language and lower HRI confidence.
 
-**Hysteresis:** a type clears only after its condition has been gone for 6 s.
-**Alerts:** written to `alerts/` only when severity *rises*, so there is one alert per onset or escalation.
+### 2.7 Personal baseline
+Built from the first 120 s of *qualified* data (worn, valid HR, rest/light activity) of the current
+assignment: resting BPM, RMSSD and surface temperature. Until then baseline rules cannot fire and
+confidence is multiplied by 0.85.
 
-All clinical thresholds are in `config/thresholds` (organiser-editable). Algorithm constants are in
-`Backend/functions/src/health/config.ts`.
+## 3. Explainable HRI (experimental)
 
-## 3. Latency
+**Confidence (data quality) is computed separately from the score.**
 
-Every `health` record carries the following timings:
-- `latency.processingMs`: from the server receiving the raw chunk to the health record being computed.
-- `latency.endToEndMs`: from the end of the chunk on the band (NTP clock) to the health record being computed.
+```
+confidence = (worn ? 1 : 0)
+           × Π penalty(flag)                       (config.confidencePenalties)
+           × (0.4 + 0.6 × physiologicalInputs / 3)  (HR, HRV, surface temp valid)
+           × (baseline ? 1 : 0.85)
+level: ≥ 0.70 high · ≥ 0.45 medium · > 0 low · 0 none
+```
 
-Worst-case detection delay ≈ chunk length (2 s) + upload + processing. Report the measured
-distribution (median / 95th percentile) from `health` records in the evaluation.
+**Rules** (only on valid inputs; a rule with missing inputs does not fire and the input is listed
+as missing — missing data never counts as low risk):
 
-## 4. Validation plan
+| Rule | Points | Threshold | Source |
+|---|---|---|---|
+| HR rise > 30 bpm within 90 s at rest/light activity | 30 | 30 bpm | TAF |
+| HR above personal resting baseline (rest/light) | 20 | 25 bpm | engineering default |
+| RMSSD below × baseline | 15 | 0.6 | engineering default |
+| Surface temperature above its baseline | 20 | 1.5 °C | engineering default |
+| Ambient temperature (context — only adds points if a physiological rule fired) | 10 | 35 °C | engineering default |
+| No movement while worn | 15 | 30 s | TAF |
+| Possible impact then no movement | 25 | 30 s | engineering default |
+| Low SpO2 (**disabled**) | 25 | 94 % for 10 s | TAF |
 
-| What | How | Metric |
+* **Score** = min(100, Σ points); **null** if no physiological input or confidence < 0.25.
+* **Status** = `insufficient_data` if score is null or confidence < 0.40, else `low` < 30 ≤
+  `elevated` < 60 ≤ `high`.
+* Every result stores `contributingFactors` (value, threshold, explanation), `availableInputs`,
+  `missingInputs`, flags/notes, `algorithmVersion`, `configVersion`, `experimental: true`,
+  `validated: false`.
+* "TAF" values come from the project proposal; engineering defaults are placeholders so the
+  pipeline runs. **All values must be reviewed and tuned with §6 before any claim.** Runtime
+  overrides: `config/hri` (deviceAdmin only); the merge always keeps `experimental/validated:false`.
+
+### Automated HRI alerts
+Created only when status is `high` with ≥ medium confidence for 3 consecutive chunks, with a 10-min
+cooldown per assignment and an idempotency key. They are priority **P2**, always
+`requiresHumanReview`, and staff can label them `true_positive / false_positive / uncertain`.
+
+### Manual SOS is independent
+Band-button SOS and app SOS are **P1**, created regardless of HRI, confidence, sensors, wear state
+or link status, deduplicated by idempotency keys, and never suppressed by the HRI.
+
+## 4. Latency fields
+`health.latency.processingMs` (server receipt → computed) and `endToEndMs` (device chunk end → computed,
+only when the band clock is NTP-synced). Report median / p95 from a recorded session; no figure is claimed yet.
+
+## 5. Privacy in the method
+Pseudonymous participant IDs; history keyed by assignment; research exports include only consented
+participants, per-export pseudonyms (R001…), relative time and derived metrics — no device IDs, GPS
+or account IDs.
+
+## 6. Evaluation plan (to be executed — no results yet)
+
+| Question | Protocol | Metric |
 |---|---|---|
-| Algorithm correctness | `cd Backend/functions && npm test` (synthetic signals with known BPM / SpO2 / falls) | all tests pass |
-| BPM | band vs. reference pulse oximeter or chest strap, rest + after exercise, ≥ 10 subjects × 2 min | MAE, Bland–Altman |
-| SpO2 | band vs. reference pulse oximeter at rest (and breath-hold, if ethically approved) | MAE; calibrate the R→SpO2 curve |
-| Temperature | skin + offset vs. clinical thermometer | MAE; fit `skinToCoreOffsetC` |
-| Fall | 20 controlled drops onto a mat + 20 daily activities (sit, walk, jump) | sensitivity, false-positive rate |
-| BPM spike | 1 min of exercise after rest | detection yes/no, delay |
-| Latency | `latency.*` fields over a 30-min session | median, p95 |
+| Algorithm correctness | `cd Backend/functions; npm test` (synthetic PPG/IMU with known BPM, HRV, impacts; HRI unit tests) | tests pass |
+| BPM agreement | band vs reference chest strap / pulse oximeter; rest, walking, after exercise; ≥ 10 participants (ethics approval) | MAE, Bland–Altman, % of time `valid` |
+| Quality grading | compare `valid` vs `low_quality` periods against reference error | error by grade; coverage |
+| HRV | band RMSSD vs chest-strap RMSSD at rest | MAE, correlation |
+| Surface temperature | vs contact skin thermometer at the same site | MAE (surface only) |
+| Possible impact | 20 controlled drops onto a mat + 20 daily activities | sensitivity, false-positive rate |
+| **HRI ablation** | replay recorded sessions through: (a) HR-only rule, (b) multi-sensor rules, (c) multi-sensor + activity-aware gating | alert rate per hour, precision on staff-labelled alerts, alerts suppressed during exercise |
+| Confidence usefulness | relation between confidence level and reference error / false alerts | error and false-alert rate by confidence level |
+| Latency | `latency.*` over a 30-min session | median, p95 |
 
-## 5. Running it
+Labels for HRI alerts come from the Emergency Command review (true/false positive/uncertain) and
+from scripted scenarios; small samples will be reported as such.
 
-- **With the Blaze plan:** `cd Backend/functions && npm run build && firebase deploy --only functions`.
-- **Without Blaze:** `cd Backend/scripts && npm run process` (same code, runs on a laptop).
-- **Without hardware:** run `npm run simulate -- --scenario bpm-spike` together with `npm run process`.
-  Other scenarios: `heatstroke`, `low-spo2`, `fall`, `no-contact`.
+## 7. Running it
+* **Blaze plan:** `cd Backend/functions; npm run build; firebase deploy --only functions`.
+* **No Blaze:** `cd Backend/scripts; npm run worker` (same code on a laptop; do not run both).
+* **No hardware:** `npm run admin demo email=<you>` then `npm run simulate bands=5 scenario=bpm-spike`
+  with the worker running. Simulator data is labelled **DEMO ONLY**.

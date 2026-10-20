@@ -1,24 +1,24 @@
-/// Realtime Database paths — mirrors Backend/functions/src/shared/paths.ts
-/// and docs/database/schema.md.
+/// Realtime Database paths used by the attendee app — mirrors
+/// Backend/functions/src/shared/paths.ts. The app only reads its own data
+/// (enforced by database.rules.json).
 class DbPaths {
   DbPaths._();
 
   static const root = 'festnet';
 
   static String thresholds() => '$root/config/thresholds';
-
-  static String deviceIndex() => '$root/deviceIndex';
-  static String deviceIndexEntry(String deviceId) => '$root/deviceIndex/$deviceId';
-
-  static String device(String deviceId) => '$root/devices/$deviceId';
-  static String deviceLatest(String deviceId) => '$root/devices/$deviceId/latest';
-  static String deviceHealth(String deviceId) => '$root/devices/$deviceId/health';
-  static String deviceHistory(String deviceId) => '$root/devices/$deviceId/history';
-  static String deviceMeta(String deviceId) => '$root/devices/$deviceId/meta';
-
   static String user(String uid) => '$root/users/$uid';
 
-  static String alerts() => '$root/alerts';
-  static String events() => '$root/events';
-  static String wellness(String uid) => '$root/wellness/$uid';
+  // Own device (readable only while attendeeLinks/{uid} points at it)
+  static String deviceLatest(String deviceId) => '$root/devices/$deviceId/latest';
+  static String deviceHealth(String deviceId) => '$root/devices/$deviceId/health';
+
+  // Own assignment
+  static String attendeeLink(String uid) => '$root/attendeeLinks/$uid';
+  static String healthHistory(String assignmentId) => '$root/healthHistory/$assignmentId';
+  static String eventPublic(String eventId) => '$root/eventsPublic/$eventId';
+
+  // Requests validated by the trusted backend
+  static String sosRequests(String uid) => '$root/sosRequests/$uid';
+  static String claimRequests(String uid) => '$root/claimRequests/$uid';
 }

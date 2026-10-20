@@ -1,22 +1,12 @@
 import type { Thresholds } from "./schema";
 
 /**
- * Default thresholds from the TAF. Mirrors the firmware sketch constants and
- * MobileApp/lib/core/constants/thresholds.dart. Runtime overrides live in
- * config/thresholds (written by `npm run admin -- config`).
+ * Application thresholds (freshness only). Clinical / HRI rules live in shared/hriConfig.ts
+ * and are explicitly experimental. Runtime overrides: config/thresholds.
  */
 export const DEFAULT_THRESHOLDS: Thresholds = {
-  bpmSpikeDelta: 30,
-  bpmSpikeWindowSec: 90,
-  spo2Low: 94,
-  spo2Critical: 90,
-  coreTempHighC: 38.0,
-  stillnessTimeoutSec: 30,
-  alertEscalationSec: 120,
-  volunteerRadiusM: 50,
-  surgeSpeedMps: 1.5,
-  surgeZoneRadiusM: 20,
-  surgeMinBands: 5,
-  deviceOfflineAfterSec: 15, // band uploads every 2 s; allow a few missed uploads
-  skinToCoreOffsetC: 3.5,
+  /** A band is "stale" after this long without a new `latest` upload (uploads every ~2 s). */
+  deviceOfflineAfterSec: 15,
+  /** A GPS position older than this is shown as stale and never used as a "current" location. */
+  gpsStaleAfterSec: 60,
 };

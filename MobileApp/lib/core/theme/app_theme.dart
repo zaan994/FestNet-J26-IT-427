@@ -3,46 +3,95 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
 /// Extra FestNet colours that Material's ColorScheme has no slot for.
-/// Use: `context.festnet.muted`, `context.festnet.surface2` ...
+/// Use: `context.festnet.muted`, `context.festnet.critical` ...
+/// Status colours are theme-specific (darker in light mode, lighter in dark mode for contrast)
+/// and are always shown together with an icon and a text label.
 @immutable
 class FestNetColors extends ThemeExtension<FestNetColors> {
-  const FestNetColors({required this.background, required this.surface2, required this.line, required this.muted});
+  const FestNetColors({
+    required this.background,
+    required this.surface2,
+    required this.elevated,
+    required this.line,
+    required this.muted,
+    required this.normal,
+    required this.warning,
+    required this.danger,
+    required this.critical,
+  });
 
   final Color background;
   final Color surface2;
+  final Color elevated;
   final Color line;
   final Color muted;
+  final Color normal;
+  final Color warning;
+  final Color danger;
+  final Color critical;
 
   static const light = FestNetColors(
     background: AppColors.lightBg,
     surface2: AppColors.lightSurface2,
+    elevated: AppColors.lightElevated,
     line: AppColors.lightLine,
     muted: AppColors.lightMuted,
+    normal: AppColors.lightNormal,
+    warning: AppColors.lightWarning,
+    danger: AppColors.lightDanger,
+    critical: AppColors.lightCritical,
   );
 
   static const dark = FestNetColors(
     background: AppColors.darkBg,
     surface2: AppColors.darkSurface2,
+    elevated: AppColors.darkElevated,
     line: AppColors.darkLine,
     muted: AppColors.darkMuted,
+    normal: AppColors.darkNormal,
+    warning: AppColors.darkWarning,
+    danger: AppColors.darkDanger,
+    critical: AppColors.darkCritical,
   );
 
   @override
-  FestNetColors copyWith({Color? background, Color? surface2, Color? line, Color? muted}) => FestNetColors(
+  FestNetColors copyWith({
+    Color? background,
+    Color? surface2,
+    Color? elevated,
+    Color? line,
+    Color? muted,
+    Color? normal,
+    Color? warning,
+    Color? danger,
+    Color? critical,
+  }) =>
+      FestNetColors(
         background: background ?? this.background,
         surface2: surface2 ?? this.surface2,
+        elevated: elevated ?? this.elevated,
         line: line ?? this.line,
         muted: muted ?? this.muted,
+        normal: normal ?? this.normal,
+        warning: warning ?? this.warning,
+        danger: danger ?? this.danger,
+        critical: critical ?? this.critical,
       );
 
   @override
   FestNetColors lerp(FestNetColors? other, double t) {
     if (other == null) return this;
+    Color l(Color a, Color b) => Color.lerp(a, b, t)!;
     return FestNetColors(
-      background: Color.lerp(background, other.background, t)!,
-      surface2: Color.lerp(surface2, other.surface2, t)!,
-      line: Color.lerp(line, other.line, t)!,
-      muted: Color.lerp(muted, other.muted, t)!,
+      background: l(background, other.background),
+      surface2: l(surface2, other.surface2),
+      elevated: l(elevated, other.elevated),
+      line: l(line, other.line),
+      muted: l(muted, other.muted),
+      normal: l(normal, other.normal),
+      warning: l(warning, other.warning),
+      danger: l(danger, other.danger),
+      critical: l(critical, other.critical),
     );
   }
 }
@@ -58,13 +107,13 @@ class AppTheme {
     final fx = isDark ? FestNetColors.dark : FestNetColors.light;
     final ink = isDark ? AppColors.darkInk : AppColors.lightInk;
     final surface = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final primary = isDark ? AppColors.darkPrimary : AppColors.lightPrimary;
 
-    final scheme = ColorScheme.fromSeed(seedColor: AppColors.violet, brightness: brightness).copyWith(
-      primary: isDark ? AppColors.violetLight : AppColors.violet,
-      onPrimary: isDark ? AppColors.lightInk : Colors.white,
-      secondary: isDark ? AppColors.magentaLight : AppColors.magenta,
-      onSecondary: Colors.white,
-      tertiary: isDark ? AppColors.cyanLight : AppColors.cyan,
+    final scheme = ColorScheme.fromSeed(seedColor: AppColors.lightPrimary, brightness: brightness).copyWith(
+      primary: primary,
+      onPrimary: isDark ? AppColors.darkBg : Colors.white,
+      secondary: isDark ? AppColors.darkSecondary : AppColors.lightSecondary,
+      onSecondary: isDark ? AppColors.darkBg : Colors.white,
       surface: surface,
       onSurface: ink,
       onSurfaceVariant: fx.muted,
@@ -72,10 +121,11 @@ class AppTheme {
       surfaceContainerLow: surface,
       surfaceContainer: surface,
       surfaceContainerHigh: fx.surface2,
-      surfaceContainerHighest: fx.surface2,
+      surfaceContainerHighest: fx.elevated,
       outline: fx.muted,
       outlineVariant: fx.line,
-      error: AppColors.critical,
+      error: fx.critical,
+      onError: isDark ? AppColors.darkBg : Colors.white,
     );
 
     final radius = BorderRadius.circular(14);
@@ -104,17 +154,17 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: scheme.primary.withValues(alpha: isDark ? 0.25 : 0.14),
+        indicatorColor: primary.withValues(alpha: isDark ? 0.22 : 0.14),
         height: 70,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             fontSize: 12,
             fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
-            color: states.contains(WidgetState.selected) ? scheme.primary : fx.muted,
+            color: states.contains(WidgetState.selected) ? primary : fx.muted,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
-          (states) => IconThemeData(color: states.contains(WidgetState.selected) ? scheme.primary : fx.muted),
+          (states) => IconThemeData(color: states.contains(WidgetState.selected) ? primary : fx.muted),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -122,7 +172,7 @@ class AppTheme {
         fillColor: surface,
         border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: fx.line)),
         enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: fx.line)),
-        focusedBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: scheme.primary, width: 2)),
+        focusedBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: primary, width: 2)),
         labelStyle: TextStyle(color: fx.muted),
       ),
       filledButtonTheme: FilledButtonThemeData(

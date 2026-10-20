@@ -1,34 +1,39 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
-import { RequireRole } from "@/features/authentication/components/RequireRole";
+import { AccessAuditPage } from "@/features/access_audit/pages/AccessAuditPage";
+import { RouteError } from "@/components/common/RouteError";
+import { RequireStaff } from "@/features/authentication/components/RequireRole";
 import { LoginPage } from "@/features/authentication/pages/LoginPage";
 import { CrowdMonitoringPage } from "@/features/crowd_monitoring/pages/CrowdMonitoringPage";
+import { DeviceDetailPage } from "@/features/device_detail/pages/DeviceDetailPage";
 import { EmergencyCommandPage } from "@/features/emergency_command/pages/EmergencyCommandPage";
 import { EventOverviewPage } from "@/features/event_overview/pages/EventOverviewPage";
 import { HeatWellnessPage } from "@/features/heat_wellness/pages/HeatWellnessPage";
-import { BandDetailPage } from "@/features/live_health/pages/BandDetailPage";
+import { HriAnalyticsPage } from "@/features/hri_analytics/pages/HriAnalyticsPage";
 import { LiveHealthPage } from "@/features/live_health/pages/LiveHealthPage";
+import { ManagementPage } from "@/features/management/pages/ManagementPage";
 import { ReportsPage } from "@/features/reports_analytics/pages/ReportsPage";
-import { RespondersPage } from "@/features/responder_management/pages/RespondersPage";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
-import { DASHBOARD_ROLES } from "@/types";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   {
     path: "/",
     element: (
-      <RequireRole roles={DASHBOARD_ROLES}>
+      <RequireStaff>
         <DashboardLayout />
-      </RequireRole>
+      </RequireStaff>
     ),
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <Navigate to="/overview" replace /> },
       { path: "overview", element: <EventOverviewPage /> },
       { path: "health", element: <LiveHealthPage /> }, // C1
-      { path: "health/:deviceId", element: <BandDetailPage /> }, // C1
-      { path: "emergency", element: <EmergencyCommandPage /> }, // C2
-      { path: "responders", element: <RespondersPage /> }, // C2
+      { path: "devices/:deviceId", element: <DeviceDetailPage /> }, // C1
+      { path: "emergency", element: <EmergencyCommandPage /> }, // C1 + C2
+      { path: "manage", element: <ManagementPage /> },
+      { path: "analytics", element: <HriAnalyticsPage /> }, // C1
+      { path: "access", element: <AccessAuditPage /> },
       { path: "crowd", element: <CrowdMonitoringPage /> }, // C3
       { path: "wellness", element: <HeatWellnessPage /> }, // C4
       { path: "reports", element: <ReportsPage /> }, // C4

@@ -1,29 +1,41 @@
 /**
- * Component 2 — Emergency Alert System (owner: Manubasha K.D.C.)
+ * Requests from clients and devices, executed by the trusted backend.
  *
- * FOUNDATION STATUS: logs every new alert so the band -> RTDB -> Functions pipeline
- * can be verified. C2 replaces the body with:
- *   - FCM dispatch to the medical team within 3 s (Warning / Danger / Critical urgency)
- *   - volunteer proximity query (shared/geo.ts haversineMeters, radius from thresholds)
- *   - auto-escalation when unacknowledged after `alertEscalationSec`
+ *  onCommandCreated     commands/{uid}/{commandId}        staff actions (assign, return, alerts …)
+ *  onSosRequestCreated  sosRequests/{uid}/{requestId}     attendee-app SOS
+ *  onClaimRequested     claimRequests/{uid}/{requestId}   attendee claim code
+ *  onDeviceSosPressed   devices/{id}/latest/sosPressCount band SOS button (fires only when it changes)
+ *
+ * All four are also handled by the local worker (Backend/scripts: npm run worker).
  */
-import * as logger from "firebase-functions/logger";
-import { onValueCreated } from "firebase-functions/v2/database";
+import { onValueCreated, onValueWritten } from "firebase-functions/v2/database";
 
-import { DB_INSTANCE, REGION } from "../config/runtime";
-import type { Alert } from "../shared";
+import { DB_INSTANCE, functionsContext, REGION } from "../config/runtime";
+import { redeemClaim } from "../services/assignments";
+import { executeCommand } from "../services/commands";
+import { handleAppSos, handleDeviceSos } from "../services/emergencies";
+import type { ClaimRequest, Command, SosRequest } from "../shared";
 
-export const onAlertCreated = onValueCreated(
-  { ref: "/festnet/alerts/{alertId}", instance: DB_INSTANCE, region: REGION },
-  async (event) => {
-    const alert = event.data.val() as Alert;
-    logger.info("New alert", {
-      alertId: event.params.alertId,
-      deviceId: alert.deviceId,
-      source: alert.source,
-      severity: alert.severity,
-      types: alert.types ?? [],
-    });
-    // TODO(C2): dispatch, volunteer proximity, escalation.
-  },
-);
+const opts = (ref: string) => ({ ref, instance: DB_INSTANCE, region: REGION, retry: true });
+
+export const onCommandCreated = onValueCreated(opts("/festnet/commands/{uid}/{commandId}"), async (event) => {
+  await executeCommand(functionsContext(), event.params.uid, event.params.commandId, event.data.val() as Command | null);
+});
+
+export const onSosRequestCreated = onValueCreated(opts("/festnet/sosRequests/{uid}/{requestId}"), async (event) => {
+  await handleAppSos(functionsContext(), event.params.uid, event.params.requestId, event.data.val() as SosRequest | null);
+});
+
+export const onClaimRequested = onValueCreated(opts("/festnet/claimRequests/{uid}/{requestId}"), async (event) => {
+  const request = event.data.val() as ClaimRequest | null;
+  if (!request || request.status) return;
+  await redeemClaim(functionsContext(), event.params.uid, event.params.requestId, request.code);
+});
+
+export const onDeviceSosPressed = onValueWritten(opts("/festnet/devices/{deviceId}/latest/sosPressCount"), async (event) => {
+  const before = event.data.before.val();
+  const after = event.data.after.val();
+  if (typeof after !== "number" || after === before) return;
+  // Each new press value is its own SOS (idempotent per boot + press count).
+  await handleDeviceSos(functionsContext(), event.params.deviceId, after);
+});

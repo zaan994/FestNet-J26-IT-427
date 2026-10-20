@@ -16,28 +16,35 @@ export default {
         bg: token("bg"),
         surface: token("surface"),
         "surface-2": token("surface-2"),
+        elevated: token("elevated"),
         line: token("line"),
         ink: token("ink"),
         muted: token("muted"),
         brand: token("brand"),
+        "brand-hover": token("brand-hover"),
         "brand-2": token("brand-2"),
         accent: token("accent"),
-        // Status colours are fixed in both themes (never used for series) and always paired with a label.
+        // Status colours — reserved for state, always paired with an icon + label.
+        status: {
+          normal: token("status-normal"),
+          warning: token("status-warning"),
+          danger: token("status-danger"),
+          critical: token("status-critical"),
+        },
+        // Backwards-compatible aliases used by older components.
         severity: {
-          none: "#16A34A",
-          warning: "#F5A524",
-          danger: "#F97316",
-          critical: "#E11D48",
+          none: token("status-normal"),
+          warning: token("status-warning"),
+          danger: token("status-danger"),
+          critical: token("status-critical"),
         },
       },
       boxShadow: {
-        card: "0 1px 2px rgb(var(--shadow) / 0.06), 0 8px 24px -12px rgb(var(--shadow) / 0.18)",
-        glow: "0 0 0 1px rgb(var(--brand) / 0.25), 0 8px 32px -8px rgb(var(--brand) / 0.45)",
+        card: "0 1px 2px rgb(var(--shadow) / 0.05), 0 6px 18px -10px rgb(var(--shadow) / 0.18)",
+        glow: "0 0 0 1px rgb(var(--brand) / 0.25), 0 6px 20px -8px rgb(var(--brand) / 0.35)",
       },
       backgroundImage: {
         "brand-gradient": "linear-gradient(135deg, rgb(var(--brand)) 0%, rgb(var(--brand-2)) 100%)",
-        "stage-glow":
-          "radial-gradient(1200px 600px at 100% -10%, rgb(var(--brand-2) / 0.10), transparent 60%), radial-gradient(900px 500px at -10% 110%, rgb(var(--brand) / 0.10), transparent 60%)",
       },
     },
   },

@@ -9,8 +9,8 @@ import '../../../shared/extensions/context_extensions.dart';
 import '../../../shared/widgets/gradient_button.dart';
 import '../widgets/auth_scaffold.dart';
 
-/// Self-registration creates a participant account. Volunteer / medical / organiser
-/// roles are assigned by an organiser.
+/// Self-registration creates an attendee account. Staff roles are granted only by the
+/// backend (device administrators / event operators), never by the app.
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
@@ -40,7 +40,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final name = _name.text.trim();
       final email = _email.text.trim();
       final user = await ref.read(authServiceProvider).register(email, _password.text, name);
-      await ref.read(userRepositoryProvider).createParticipantProfile(uid: user.uid, name: name, email: email);
+      await ref.read(userRepositoryProvider).createProfile(uid: user.uid, displayName: name, email: email);
     } on AppException catch (e) {
       if (mounted) context.showSnack(e.message, error: true);
     } catch (e) {
@@ -54,7 +54,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     return AuthScaffold(
       title: 'Create account',
-      subtitle: 'Join FestNet as a festival participant',
+      subtitle: 'Join FestNet as a festival attendee',
       children: [
         Form(
           key: _formKey,
@@ -63,7 +63,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               TextFormField(
                 controller: _name,
                 textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Full name'),
+                maxLength: 80,
+                decoration: const InputDecoration(labelText: 'Display name (a nickname is fine)', counterText: ''),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your name' : null,
               ),
               const SizedBox(height: 12),

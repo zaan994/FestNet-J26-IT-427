@@ -1,54 +1,48 @@
 import 'package:flutter/material.dart';
 
-import '../../models/enums.dart';
-
-/// FestNet palette — shared with the dashboard (Dashboard/src/styles/index.css).
-/// Light = "Festival Day", dark = "Festival Night". Brand = violet → magenta gradient.
+/// FestNet palette — identical to the dashboard tokens (Dashboard/src/styles/index.css).
+/// Brand = teal (primary) → sky (secondary).
 class AppColors {
   AppColors._();
 
-  // Brand
-  static const violet = Color(0xFF7C3AED);
-  static const violetLight = Color(0xFFA78BFA); // brand on dark backgrounds
-  static const magenta = Color(0xFFDB2777);
-  static const magentaLight = Color(0xFFEC4899);
-  static const cyan = Color(0xFF0891B2);
-  static const cyanLight = Color(0xFF22D3EE);
-  static const brand = violet;
+  // ---- Light ----
+  static const lightBg = Color(0xFFF5F8FC);
+  static const lightSurface = Color(0xFFFFFFFF);
+  static const lightSurface2 = Color(0xFFEDF3F8); // surface-secondary
+  static const lightElevated = Color(0xFFFFFFFF);
+  static const lightPrimary = Color(0xFF0D9488);
+  static const lightPrimaryHover = Color(0xFF0F766E);
+  static const lightSecondary = Color(0xFF0284C7);
+  static const lightInk = Color(0xFF0F172A);
+  static const lightMuted = Color(0xFF475569);
+  static const lightLine = Color(0xFFDCE5EF);
+  static const lightNormal = Color(0xFF15803D);
+  static const lightWarning = Color(0xFFA16207);
+  static const lightDanger = Color(0xFFC2410C);
+  static const lightCritical = Color(0xFFDC2626);
+
+  // ---- Dark ----
+  static const darkBg = Color(0xFF0B1220);
+  static const darkSurface = Color(0xFF172337);
+  static const darkSurface2 = Color(0xFF111C2E);
+  static const darkElevated = Color(0xFF202E43);
+  static const darkPrimary = Color(0xFF14B8A6);
+  static const darkPrimaryHover = Color(0xFF2DD4BF);
+  static const darkSecondary = Color(0xFF38BDF8);
+  static const darkInk = Color(0xFFF8FAFC);
+  static const darkMuted = Color(0xFF94A3B8);
+  static const darkLine = Color(0xFF26364B);
+  static const darkNormal = Color(0xFF34D399);
+  static const darkWarning = Color(0xFFFBBF24);
+  static const darkDanger = Color(0xFFFB923C);
+  static const darkCritical = Color(0xFFF87171);
+
+  /// Brand colour for artwork that is the same in both themes (logo, gradient buttons).
+  static const brand = lightPrimary;
 
   static const brandGradient = LinearGradient(
-    colors: [Color(0xFF7C3AED), Color(0xFFEC4899)],
+    colors: [lightPrimary, lightSecondary],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-
-  // Festival Day (light)
-  static const lightBg = Color(0xFFFAF7FF);
-  static const lightSurface = Color(0xFFFFFFFF);
-  static const lightSurface2 = Color(0xFFF3EEFF);
-  static const lightLine = Color(0xFFE5DEF5);
-  static const lightInk = Color(0xFF1B1033);
-  static const lightMuted = Color(0xFF6B6085);
-
-  // Festival Night (dark)
-  static const darkBg = Color(0xFF0B0B1F);
-  static const darkSurface = Color(0xFF15152E);
-  static const darkSurface2 = Color(0xFF1E1E3E);
-  static const darkLine = Color(0xFF2E2E56);
-  static const darkInk = Color(0xFFF4F4FF);
-  static const darkMuted = Color(0xFF9CA3C7);
-
-  // Status — fixed in both themes, always shown with an icon + label.
-  static const normal = Color(0xFF16A34A);
-  static const warning = Color(0xFFF5A524);
-  static const danger = Color(0xFFF97316);
-  static const critical = Color(0xFFE11D48);
-  static const offline = Color(0xFF94A3B8);
-
-  static Color forSeverity(Severity severity) => switch (severity) {
-        Severity.none => normal,
-        Severity.warning => warning,
-        Severity.danger => danger,
-        Severity.critical => critical,
-      };
 }

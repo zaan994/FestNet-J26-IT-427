@@ -1,19 +1,17 @@
 // Shared data contract (Backend/functions/src/shared) + dashboard-only view models.
 export type * from "@shared/schema";
+export type { ParsedLatest, Freshness } from "@shared/telemetry";
 
-import type { DeviceHealth, DeviceIndexEntry, DeviceLatest, Role } from "@shared/schema";
+import type { DeviceHealth } from "@shared/schema";
+import type { ParsedLatest } from "@shared/telemetry";
 
-/** A band as shown in the UI: index entry + live data + client-side online status. */
-export interface BandView {
+/** Live view of one band: parsed latest telemetry + derived health + client receive time. */
+export interface DeviceLive {
   deviceId: string;
-  index: DeviceIndexEntry | null;
-  /** Raw readings written by the band. */
-  latest: DeviceLatest | null;
-  /** Vitals + anomalies computed by the C1 backend processor. */
+  latest: ParsedLatest | null;
   health: DeviceHealth | null;
-  /** Client time (ms) when the latest snapshot last changed — works without device timestamps. */
-  lastSeenAt: number | null;
-  online: boolean;
+  /** Client time the latest telemetry last CHANGED (the cached value on subscribe does not count). */
+  receivedAt: number | null;
+  /** Permission or network error for this device, if any. */
+  error: string | null;
 }
-
-export const DASHBOARD_ROLES: Role[] = ["organiser", "medical"];

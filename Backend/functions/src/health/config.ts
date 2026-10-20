@@ -1,82 +1,79 @@
 /**
- * C1 algorithm constants (signal-processing details). Clinical / organiser-tunable
- * thresholds live in shared/thresholds.ts (config/thresholds in RTDB).
+ * C1 signal-processing constants (engineering defaults, not clinical thresholds).
+ * Clinical/HRI rules are in shared/hriConfig.ts (experimental, configurable at config/hri).
  */
 export const HEALTH_CONFIG = {
+  // --- expected firmware rates (firmware v0.3.x) ---
+  ppgFsHz: 100,
+  imuFsHz: 50,
+  /** A chunk with fewer than this fraction of expected samples is flagged. */
+  minSampleCompleteness: 0.9,
+
   // --- PPG / heart rate ---
   /** Median IR level that means the sensor touches skin. */
   ppgContactIrMin: 50_000,
-  /** Moving-average window removed from the PPG to isolate the pulse (s). */
+  /** 18-bit ADC full scale; samples at/near it are saturated. */
+  ppgSaturationLevel: 262_000,
   ppgDetrendWindowSec: 0.75,
-  /** Smoothing window applied to the pulse waveform (samples @100 Hz = 50 ms). */
   ppgSmoothSamples: 5,
-  /** Peak must exceed this fraction of the 95th percentile of the pulse waveform. */
   ppgPeakThresholdRatio: 0.5,
-  /** Beats are accepted with this delay so a peak at a chunk boundary is seen with both neighbours. */
+  /** Beats are accepted with this delay so a peak at a chunk boundary is judged with both neighbours. */
   ppgAcceptDelayMs: 200,
-  /** Seconds of PPG kept from the previous chunk (filter continuity + 4-s SpO2 window). */
   ppgTailSec: 2,
+  /** Perfusion index (%) below this = weak pulse signal. */
+  minPerfusionIndex: 0.1,
 
   ibiMinMs: 300, // 200 bpm
   ibiMaxMs: 2000, // 30 bpm
-  /** Reject an interval more than 30 % away from the median of the last 5 (artefact). */
   ibiMaxDeviation: 0.3,
   ibiMedianCount: 5,
-  /** Consecutive rejected intervals before the rhythm history is reset (re-lock). */
   ibiRelockAfter: 4,
   bpmMedianCount: 8,
   bpmMinIbis: 4,
-  /** No beat for this long -> BPM unknown. */
   bpmStaleMs: 4000,
+  /** Fraction of accepted beat intervals (rolling) below which beat detection is "unstable". */
+  minBeatAcceptance: 0.7,
 
-  // --- SpO2 (ratio of ratios, uncalibrated empirical curve) ---
+  // --- SpO2 (ratio of ratios, UNCALIBRATED — never displayed unless config enables it) ---
   spo2MinRatio: 0.3,
   spo2MaxRatio: 1.6,
   spo2Smoothing: 0.3,
 
-  // --- HRV / stress ---
+  // --- HRV (guards) ---
   hrvWindowMs: 60_000,
+  /** Minimum accepted intervals in the window. */
   hrvMinIbis: 10,
-  /** Personal baseline from the first 2 minutes of valid wear. */
-  stressBaselineMs: 120_000,
-  stressBaselineMinSamples: 10,
-  /** Population reference used until the personal baseline is ready. */
-  stressRefRmssdMs: 42,
-  stressRefBpm: 75,
-  stressSmoothing: 0.3,
+  /** Minimum consecutive accepted pairs (successive differences). */
+  hrvMinPairs: 8,
+  /** The intervals must span at least this long. */
+  hrvMinSpanMs: 30_000,
 
   // --- temperature ---
   tempSmoothing: 0.3,
 
-  // --- motion (IMU @ 50 Hz) ---
+  // --- motion / activity (per 2-s chunk, magnitude in g) ---
   fallFreefallG: 0.5,
   fallFreefallMinMs: 60,
   fallImpactG: 2.5,
   fallImpactWindowMs: 1000,
-  /** A fall stays active until movement resumes, and for at least this long. */
-  fallHoldMs: 10_000,
-  /** Per 2-s chunk: below both limits = no movement. */
-  stillMaxStdG: 0.02,
-  stillMaxGyroDps: 10,
-  /** motion.state becomes "still" after this many seconds without movement. */
-  stillStateAfterSec: 5,
+  /** Possible-impact state clears once movement resumes after this long. */
+  impactHoldMs: 10_000,
+  activityRestStdG: 0.02,
+  activityRestGyroDps: 10,
+  activityLightStdG: 0.08,
+  activityModerateStdG: 0.25,
+  /** Wearable is "still" when activity is rest; activity.stillSec counts how long. */
 
-  // --- anomaly rules ---
-  spo2SustainMs: 10_000,
-  tempSustainMs: 5_000,
-  /** Hysteresis: a condition must be gone this long before its anomaly clears. */
-  anomalyClearHoldMs: 6_000,
-  /** A fall counts if the band was worn within this time (impact can break skin contact). */
-  wornGraceMs: 10_000,
+  // --- timing / quality ---
+  /** Raw chunk received more than this after its end (device clock) = delayed. */
+  delayedChunkMs: 10_000,
 
   // --- outputs / housekeeping ---
   historyIntervalMs: 10_000,
-  /** Raw chunks are deleted after this age (server time). */
   rawRetentionMs: 5 * 60_000,
-  /** Run raw pruning every N processed chunks. */
   rawPruneEvery: 15,
-  /** Computed history is deleted after this age (scheduled function). */
-  historyRetentionMs: 24 * 3_600_000,
+  /** Per-assignment history retention (scheduled cleanup). Research exports should be taken before. */
+  historyRetentionMs: 30 * 24 * 3_600_000,
 } as const;
 
 export type HealthConfig = typeof HEALTH_CONFIG;

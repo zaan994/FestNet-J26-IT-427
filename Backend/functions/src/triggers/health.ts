@@ -1,20 +1,17 @@
 /**
  * Component 1 — Real-Time Health Monitoring (owner: Rizvi M.Z.M.)
  *
- * processRawChunk:  every raw chunk the band pushes -> BPM, SpO2, HRV, stress, core temp,
- *                   fall / stillness, anomalies -> devices/{id}/health, history, alerts.
- * pruneHealthHistory: hourly cleanup of computed history older than 24 h.
+ * processRawChunk:   each raw chunk → derived health + explainable HRI (+ history, stats, HRI alert).
+ * pruneHealthHistory: hourly cleanup of per-assignment history past its retention.
  *
- * Without the Blaze plan, run the same processing locally instead:
- *   cd Backend/scripts && npm run process
+ * Without the Blaze plan, run the same code locally: cd Backend/scripts && npm run worker
  */
-import { getDatabase } from "firebase-admin/database";
 import * as logger from "firebase-functions/logger";
 import { onValueCreated } from "firebase-functions/v2/database";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
-import { DB_INSTANCE, REGION } from "../config/runtime";
-import { processRawChunk as processChunkAndStore, pruneHistory } from "../health";
+import { DB_INSTANCE, functionsContext, REGION } from "../config/runtime";
+import { processRawChunk as processAndStore, pruneHistory } from "../health/store";
 import type { RawChunk } from "../shared";
 
 export const processRawChunk = onValueCreated(
@@ -22,28 +19,24 @@ export const processRawChunk = onValueCreated(
     ref: "/festnet/devices/{deviceId}/raw/{chunkId}",
     instance: DB_INSTANCE,
     region: REGION,
-    // One chunk at a time, so each band's chunks are processed in order against a
-    // consistent processor state. Fine for prototype scale (a few bands).
+    // One chunk at a time keeps each band's chunks in order against one processor state.
+    // Fine for a prototype; see docs/architecture/scaling.md for sharding at festival scale.
     maxInstances: 1,
     concurrency: 1,
   },
   async (event) => {
     const { deviceId, chunkId } = event.params;
     const chunk = event.data.val() as RawChunk | null;
-    if (!chunk || typeof chunk.seq !== "number") {
+    if (!chunk || typeof chunk.seq !== "number" || typeof chunk.t0UptimeMs !== "number") {
       logger.warn("Ignoring malformed raw chunk", { deviceId, chunkId });
       return;
     }
-    const result = await processChunkAndStore(getDatabase(), deviceId, chunk);
-    if (result.skipped) {
-      logger.info("Skipped raw chunk", { deviceId, seq: chunk.seq, reason: result.skipped });
-    } else if (result.alert) {
-      logger.info("Anomaly alert", { deviceId, severity: result.alert.severity, types: result.alert.types });
-    }
+    const result = await processAndStore(functionsContext(), deviceId, chunk);
+    if (result.skipped) logger.info("Skipped raw chunk", { deviceId, seq: chunk.seq, reason: result.skipped });
   },
 );
 
 export const pruneHealthHistory = onSchedule({ schedule: "every 60 minutes", region: REGION }, async () => {
-  const removed = await pruneHistory(getDatabase());
-  logger.info("Pruned health history", { removed });
+  const removed = await pruneHistory(functionsContext());
+  logger.info("Pruned health history", { removedAssignments: removed });
 });

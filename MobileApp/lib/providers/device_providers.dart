@@ -1,44 +1,63 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/attendee.dart';
 import '../models/device_health.dart';
 import '../models/device_latest.dart';
 import 'auth_providers.dart';
 import 'firebase_providers.dart';
 
-/// Device id of the signed-in user's paired band, or null.
-final pairedDeviceIdProvider = Provider.autoDispose<String?>((ref) {
-  final profile = ref.watch(currentProfileProvider).valueOrNull;
-  return profile != null && profile.hasBand ? profile.deviceId : null;
+/// attendeeLinks/{uid}: the band currently linked to this account (null = no band).
+final attendeeLinkProvider = StreamProvider<AttendeeLink?>((ref) {
+  final user = ref.watch(authStateProvider).valueOrNull;
+  if (user == null) return Stream.value(null);
+  return ref.watch(attendeeRepositoryProvider).watchLink(user.uid);
 });
 
-/// Computed C1 health of any band by id.
-final deviceHealthProvider = StreamProvider.autoDispose.family<DeviceHealth?, String>(
-  (ref, deviceId) => ref.watch(deviceRepositoryProvider).watchHealth(deviceId),
-);
-
-/// History of a band: (deviceId, number of 10-s points).
-final deviceHistoryProvider = StreamProvider.autoDispose.family<List<HistoryPoint>, (String, int)>(
-  (ref, args) => ref.watch(deviceRepositoryProvider).watchHistory(args.$1, args.$2),
-);
-
-/// Live snapshot of any band by id.
-final deviceSnapshotProvider = StreamProvider.autoDispose.family<DeviceSnapshot, String>(
-  (ref, deviceId) => ref.watch(deviceRepositoryProvider).watchLatest(deviceId),
-);
-
-/// Live snapshot of the signed-in user's paired band (null when not paired).
-final pairedDeviceProvider = Provider.autoDispose<AsyncValue<DeviceSnapshot?>>((ref) {
-  final profile = ref.watch(currentProfileProvider);
-  return profile.when(
-    data: (p) => p == null || !p.hasBand
-        ? const AsyncValue<DeviceSnapshot?>.data(null)
-        : ref.watch(deviceSnapshotProvider(p.deviceId!)).whenData<DeviceSnapshot?>((s) => s),
-    loading: () => const AsyncValue<DeviceSnapshot?>.loading(),
-    error: (e, st) => AsyncValue<DeviceSnapshot?>.error(e, st),
-  );
+/// Live telemetry of the linked band.
+final linkedSnapshotProvider = StreamProvider.autoDispose<DeviceSnapshot?>((ref) {
+  final link = ref.watch(attendeeLinkProvider).valueOrNull;
+  if (link == null) return Stream.value(null);
+  return ref.watch(deviceRepositoryProvider).watchLatest(link.deviceId);
 });
 
-/// Ticks every second so "x s ago" labels and online/offline status refresh.
+/// Derived health of the linked band — only if it belongs to THIS assignment, so data from a
+/// previous wearer of the same band is never shown.
+final linkedHealthProvider = StreamProvider.autoDispose<DeviceHealth?>((ref) {
+  final link = ref.watch(attendeeLinkProvider).valueOrNull;
+  if (link == null) return Stream.value(null);
+  return ref
+      .watch(deviceRepositoryProvider)
+      .watchHealth(link.deviceId)
+      .map((h) => h != null && h.assignmentId == link.assignmentId ? h : null);
+});
+
+/// History of the current assignment for a time window.
+final historyProvider = StreamProvider.autoDispose.family<List<HistoryPoint>, Duration>((ref, window) {
+  final link = ref.watch(attendeeLinkProvider).valueOrNull;
+  if (link == null) return Stream.value(const []);
+  return ref.watch(deviceRepositoryProvider).watchHistory(link.assignmentId, window);
+});
+
+/// Public info of the linked event.
+final eventPublicProvider = StreamProvider.autoDispose<EventPublicInfo?>((ref) {
+  final link = ref.watch(attendeeLinkProvider).valueOrNull;
+  if (link == null) return Stream.value(null);
+  return ref.watch(attendeeRepositoryProvider).watchEventPublic(link.eventId);
+});
+
+/// Recent SOS requests of this account with their backend status.
+final sosRequestsProvider = StreamProvider.autoDispose<List<SosRequestStatus>>((ref) {
+  final user = ref.watch(authStateProvider).valueOrNull;
+  if (user == null) return Stream.value(const []);
+  return ref.watch(attendeeRepositoryProvider).watchSosRequests(user.uid);
+});
+
+/// Whether the app is currently connected to the FestNet database (`.info/connected`).
+final connectedProvider = StreamProvider.autoDispose<bool>(
+  (ref) => ref.watch(databaseServiceProvider).ref('.info/connected').onValue.map((e) => e.snapshot.value == true),
+);
+
+/// Ticks every second so "x s ago" labels and freshness refresh.
 final clockProvider = StreamProvider.autoDispose<DateTime>(
   (ref) => Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now()),
 );

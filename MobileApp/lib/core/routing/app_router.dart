@@ -6,13 +6,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/authentication/screens/login_screen.dart';
 import '../../features/authentication/screens/register_screen.dart';
+import '../../features/device/screens/my_device_screen.dart';
 import '../../features/emergency/screens/emergency_screen.dart';
+import '../../features/event_info/screens/event_info_screen.dart';
 import '../../features/festival_location/screens/map_screen.dart';
-import '../../features/health_analysis/screens/health_analysis_screen.dart';
+import '../../features/health_analysis/screens/hri_screen.dart';
 import '../../features/health_monitoring/screens/health_screen.dart';
 import '../../features/heat_wellness/screens/wellness_screen.dart';
 import '../../features/home/screens/home_shell.dart';
-import '../../features/profile_settings/screens/pair_device_screen.dart';
 import '../../features/profile_settings/screens/profile_screen.dart';
 import '../../providers/firebase_providers.dart';
 
@@ -22,13 +23,14 @@ class Routes {
 
   static const login = 'login';
   static const register = 'register';
-  static const health = 'health'; // C1
-  static const healthAnalysis = 'health-analysis'; // C1
-  static const emergency = 'emergency'; // C2
+  static const health = 'health'; // C1 — My Health
+  static const hri = 'hri'; // C1 — HRI explanation
+  static const sos = 'sos'; // C1/C2 — Emergency
+  static const device = 'device'; // My Device (claim code)
+  static const event = 'event'; // Event & safety info
   static const map = 'map'; // C3
   static const wellness = 'wellness'; // C4
-  static const profile = 'profile';
-  static const pairDevice = 'pair-device';
+  static const settings = 'settings'; // Privacy & settings
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -57,33 +59,28 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: '/health',
               name: Routes.health,
               builder: (_, __) => const HealthScreen(),
-              routes: [
-                GoRoute(
-                  path: 'analysis',
-                  name: Routes.healthAnalysis,
-                  builder: (_, __) => const HealthAnalysisScreen(),
-                ),
-              ],
+              routes: [GoRoute(path: 'hri', name: Routes.hri, builder: (_, __) => const HriScreen())],
             ),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/emergency', name: Routes.emergency, builder: (_, __) => const EmergencyScreen()),
+            GoRoute(path: '/sos', name: Routes.sos, builder: (_, __) => const EmergencyScreen()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/map', name: Routes.map, builder: (_, __) => const MapScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/wellness', name: Routes.wellness, builder: (_, __) => const WellnessScreen()),
+            GoRoute(path: '/device', name: Routes.device, builder: (_, __) => const MyDeviceScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
-              path: '/profile',
-              name: Routes.profile,
-              builder: (_, __) => const ProfileScreen(),
+              path: '/event',
+              name: Routes.event,
+              builder: (_, __) => const EventInfoScreen(),
               routes: [
-                GoRoute(path: 'pair', name: Routes.pairDevice, builder: (_, __) => const PairDeviceScreen()),
+                GoRoute(path: 'map', name: Routes.map, builder: (_, __) => const MapScreen()),
+                GoRoute(path: 'wellness', name: Routes.wellness, builder: (_, __) => const WellnessScreen()),
               ],
             ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/settings', name: Routes.settings, builder: (_, __) => const ProfileScreen()),
           ]),
         ],
       ),

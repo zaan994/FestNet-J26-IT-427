@@ -35,16 +35,21 @@ export interface PpgAnalysis {
   /** New beats in this chunk (band uptime ms), ascending. */
   beats: number[];
   perfusionIndex: number | null;
-  /** SpO2 from this window before smoothing, or null if the signal is unusable. */
+  /** SpO2 from this window before smoothing, or null if the signal is unusable. UNCALIBRATED. */
   spo2Raw: number | null;
+  /** More than 5 % of samples at ADC full scale (pressure / ambient light) — beats unreliable. */
+  saturated: boolean;
 }
 
-const NO_CONTACT: PpgAnalysis = { contact: false, beats: [], perfusionIndex: null, spo2Raw: null };
+const NO_CONTACT: PpgAnalysis = { contact: false, beats: [], perfusionIndex: null, spo2Raw: null, saturated: false };
 
 export function analyzePpg(input: PpgInput, cfg: HealthConfig = HEALTH_CONFIG): PpgAnalysis {
   const { red, ir, fs } = input;
   if (ir.length < fs / 2 || red.length !== ir.length) return NO_CONTACT;
   if (median(ir) < cfg.ppgContactIrMin) return NO_CONTACT;
+  const saturatedSamples = ir.filter((x) => x >= cfg.ppgSaturationLevel).length + red.filter((x) => x >= cfg.ppgSaturationLevel).length;
+  const saturated = saturatedSamples > 0.05 * (ir.length + red.length);
+  if (saturated) return { contact: true, beats: [], perfusionIndex: null, spo2Raw: null, saturated: true };
 
   // Only use the tail if it is also on skin; otherwise the contact step would look like a beat.
   const useTail = input.tailIr.length > 0 && median(input.tailIr) >= cfg.ppgContactIrMin;
@@ -105,5 +110,5 @@ export function analyzePpg(input: PpgInput, cfg: HealthConfig = HEALTH_CONFIG): 
     }
   }
 
-  return { contact: true, beats, perfusionIndex, spo2Raw };
+  return { contact: true, beats, perfusionIndex, spo2Raw, saturated: false };
 }

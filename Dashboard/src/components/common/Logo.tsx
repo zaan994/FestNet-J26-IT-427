@@ -16,8 +16,8 @@ export function Logo({ size = 36, wordmark = true, subtitle }: Props) {
       <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className="shrink-0 drop-shadow-sm">
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#7C3AED" />
-            <stop offset="1" stopColor="#EC4899" />
+            <stop offset="0" stopColor="#0D9488" />
+            <stop offset="1" stopColor="#0284C7" />
           </linearGradient>
         </defs>
         <rect x="4" y="4" width="56" height="56" rx="16" fill={`url(#${gradientId})`} />

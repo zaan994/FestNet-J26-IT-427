@@ -2,49 +2,54 @@
 
 SLIIT IT4010 Research Project · **J26-IT-427** · Supervisor: Ms. Thisara Shyamalee · Co-supervisor: Ms. Poorna Panduwawala
 
-FestNet is a wearable band (ESP32 + biometric sensors) that monitors festival attendees and gets
-help to them fast. Each band streams health and location data to Firebase. A Flutter app serves
-participants and volunteers, and a React dashboard serves organisers and the medical team.
+FestNet is a wearable band (ESP32 + sensors) for festival attendees. The band uploads **raw**
+sensor data to Firebase; a trusted backend derives health information, an operator dashboard
+serves event staff, and a Flutter app serves attendees.
+
+> **Research prototype — not a medical device.** The Health Risk Indicator (HRI) is experimental
+> and unvalidated; it is not a diagnosis and never replaces medical staff. Demo data is labelled
+> **DEMO ONLY**.
 
 ## Components & ownership
 
-| # | Component | Owner | Firmware | Backend | Dashboard | Mobile |
-|---|---|---|---|---|---|---|
-| C1 | Real-Time Health Monitoring | Rizvi M.Z.M. (IT23305564) | PPG / IMU / temperature sampling | `triggers/health.ts` — HR, SpO2, HRV, anomaly detection | `features/live_health` | `features/health_monitoring`, `health_analysis` |
-| C2 | Emergency Alert System | Manubasha K.D.C. (IT23282322) | SOS button | `triggers/alerts.ts` | `features/emergency_command`, `responder_management` | `features/emergency` |
-| C3 | Location & Crowd Tracking | Pemarathna P.A.J. (IT23378452) | GPS | `triggers/crowd.ts` | `features/crowd_monitoring` | `features/festival_location` |
-| C4 | Hydration & Wellness | Bandara W.M.T.N. (IT23377158) | — | `triggers/wellness.ts` | `features/heat_wellness`, `reports_analytics` | `features/heat_wellness` |
-
-Shared code is owned by everyone and changes go through team review (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+| # | Component | Owner | Backend | Dashboard | Mobile |
+|---|---|---|---|---|---|
+| C1 | Real-Time Health Monitoring | Rizvi M.Z.M. (IT23305564) | `health/`, `hri/`, `services/` | Live Health, Band detail, HRI Analytics | My Health, HRI explanation |
+| C2 | Emergency Alert System | Manubasha K.D.C. (IT23282322) | `services/emergencies.ts` (shared with C1) | Emergency Command | SOS |
+| C3 | Location & Crowd Tracking | Pemarathna P.A.J. (IT23378452) | `triggers/crowd.ts` | Crowd Monitoring | Map |
+| C4 | Hydration & Wellness | Bandara W.M.T.N. (IT23377158) | `triggers/wellness.ts` | Heat & Wellness, Reports | Wellness |
 
 ## Repository layout
-
 ```
-Firmware/     Arduino IDE sketch for the ESP32 band (see docs/setup/firmware.md)
-Backend/      Firebase: RTDB security rules, Cloud Functions, admin CLI + band simulator
-  functions/src/shared/   ← the shared data contract (types, DB paths, thresholds, geo) used by
-                            Functions, Dashboard (@shared alias) and scripts
-Dashboard/    React + Vite + TypeScript + Tailwind organiser / medical dashboard
-MobileApp/    Flutter app (Riverpod + go_router) for participants & volunteers
-docs/         Architecture, database schema, hardware wiring, setup guides
-tests/        Integration tests and shared test data (sample payloads)
+Firmware/   Arduino sketch (raw uploader; docs/FestNet_ESP32_Firmware_v0_3_1.ino is the current reference)
+Backend/    database.rules.json · functions/ (shared contract, C1 processing, HRI, trusted services, tests)
+            scripts/ (admin CLI, local worker, band simulator)
+Dashboard/  React + Vite + TypeScript + Tailwind operator dashboard
+MobileApp/  Flutter attendee app
+docs/       architecture, database schema, research method, setup guides
 ```
 
-## Where to start
+## Documentation
+* Architecture, roles, workflows, scaling: [docs/architecture/overview.md](docs/architecture/overview.md)
+* Data contract: [docs/database/schema.md](docs/database/schema.md)
+* C1 method, HRI and evaluation plan: [docs/research/c1-health-monitoring.md](docs/research/c1-health-monitoring.md)
+* Privacy: [docs/privacy.md](docs/privacy.md)
+* Setup: [Backend](docs/setup/backend.md) · [Dashboard](docs/setup/dashboard.md) · [Mobile](docs/setup/mobile.md) · [Firmware](docs/setup/firmware.md)
 
-1. Read the data contract: [docs/database/schema.md](docs/database/schema.md)
-2. Read the architecture overview: [docs/architecture/overview.md](docs/architecture/overview.md)
-3. Set up the part you work on:
-   [Backend](docs/setup/backend.md) · [Dashboard](docs/setup/dashboard.md) · [Mobile](docs/setup/mobile.md) · [Firmware](docs/setup/firmware.md)
-4. No hardware? Run the band simulator (`Backend/scripts`, `npm run simulate`) to stream realistic data.
+## Quick start (PowerShell)
+```powershell
+cd Backend\scripts;  npm install;  npm run admin config;  npm run admin role email=<you> role=deviceAdmin
+npm run admin demo email=<you>       # optional DEMO ONLY data
+npm run worker                       # trusted backend (or deploy Cloud Functions)
+# new terminal
+cd Dashboard;  npm install;  npm run dev
+```
 
-## Status
-
+## Status (C1 v2)
 | Part | State |
 |---|---|
-| Firmware | `Firmware/festnet_band` uploads every sensor reading (`latest`) and full-rate PPG/IMU chunks (`raw`) every 2 s |
-| Backend | Rules, shared contract, functions skeleton, admin CLI, simulator |
-| Dashboard | Login + role guard, layout, Event Overview (live band table), placeholders for C1–C4 |
-| Mobile | Login/register, bottom-nav shell, band pairing, band status, placeholders for C1–C4 |
-
-> **Prototype only — not a certified medical or safety device.** Thresholds and values may differ in real-world testing.
+| Firmware | v0.3.1 raw uploader (`latest` + 2-s PPG/IMU chunks), no on-band health calculation |
+| Backend | rules with 5 roles + per-event isolation, trusted request queues, C1 processor, explainable HRI, assignments + claim codes, SOS/HRI lifecycle + audit, research export; unit + emulator tests written |
+| Dashboard | 7 C1/shared pages, light/dark palette, QR workflow |
+| Mobile | 6 attendee screens, claim-code linking, press-and-hold SOS, light/dark palette |
+| Validation | **not yet performed** — see the evaluation plan |

@@ -1,6 +1,7 @@
 {
+  "_comment": "SHAPE EXAMPLE ONLY (firmware v0.3.1 contract). Values are illustrative, not a real measurement.",
   "deviceId": "FESTNET_001",
-  "fwVersion": "0.3.0",
+  "fwVersion": "0.3.1",
   "online": true,
   "ts": 1760000000000,
   "serverTs": 1760000000150,
@@ -22,7 +23,16 @@
     "altitudeM": 12.3,
     "hdop": 1.2
   },
-  "battery": {},
+  "battery": { "pct": null },
   "net": { "transport": "wifi", "rssi": -61 },
-  "raw": { "enabled": true, "lastSeq": 261, "pendingChunks": 0, "droppedChunks": 0, "ppgOverflowTotal": 0 }
+  "raw": {
+    "enabled": true,
+    "lastSeq": 261,
+    "pendingChunks": 0,
+    "droppedChunks": 0,
+    "ppgOverflowTotal": 0,
+    "lastChunkPpgSamples": 200,
+    "lastChunkImuSamples": 100,
+    "lastChunkDurationMs": 2000
+  }
 }

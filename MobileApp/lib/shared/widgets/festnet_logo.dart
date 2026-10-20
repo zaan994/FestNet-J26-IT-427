@@ -20,7 +20,7 @@ class FestNetLogo extends StatelessWidget {
         gradient: AppColors.brandGradient,
         borderRadius: BorderRadius.circular(size * 0.28),
         boxShadow: [
-          BoxShadow(color: AppColors.violet.withValues(alpha: 0.35), blurRadius: size * 0.4, offset: Offset(0, size * 0.12)),
+          BoxShadow(color: AppColors.brand.withValues(alpha: 0.35), blurRadius: size * 0.4, offset: Offset(0, size * 0.12)),
         ],
       ),
       child: CustomPaint(painter: _PulsePainter()),
