@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * FestNet theme tokens (RGB triplets so Tailwind can apply opacity, e.g. bg-brand/10).
+ * Palette: FestNet design spec (light + dark). The active theme is set on
+ * <html data-theme="..."> by index.html + src/hooks/useTheme.tsx.
+ *
+ *   --background  #F5F8FC / #0B1220     --primary        #0D9488 / #14B8A6
+ *   --surface     #FFFFFF / #172337     --primary-hover  #0F766E / #2DD4BF
+ *   --surface-2   #EDF3F8 / #111C2E     --secondary      #0284C7 / #38BDF8
+ *   --elevated    #FFFFFF / #202E43     --text-primary   #0F172A / #F8FAFC
+ *   --border      #DCE5EF / #26364B     --text-secondary #475569 / #94A3B8
+ *   status normal/warning/danger/critical are theme-specific too.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg: 245 248 252;
+    --surface: 255 255 255;
+    --surface-2: 237 243 248;
+    --elevated: 255 255 255;
+    --line: 220 229 239;
+    --ink: 15 23 42;
+    --muted: 71 85 105;
+    --brand: 13 148 136;
+    --brand-hover: 15 118 110;
+    --brand-2: 2 132 199;
+    --accent: 2 132 199;
+    --status-normal: 21 128 61;
+    --status-warning: 161 98 7;
+    --status-danger: 194 65 12;
+    --status-critical: 220 38 38;
+    --shadow: 15 23 42;
+    --chart-grid: 220 229 239;
+    --chart-axis: 71 85 105;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: 11 18 32;
+    --surface: 23 35 55;
+    --surface-2: 17 28 46;
+    --elevated: 32 46 67;
+    --line: 38 54 75;
+    --ink: 248 250 252;
+    --muted: 148 163 184;
+    --brand: 20 184 166;
+    --brand-hover: 45 212 191;
+    --brand-2: 56 189 248;
+    --accent: 56 189 248;
+    --status-normal: 52 211 153;
+    --status-warning: 251 191 36;
+    --status-danger: 251 146 60;
+    --status-critical: 248 113 113;
+    --shadow: 0 0 0;
+    --chart-grid: 38 54 75;
+    --chart-axis: 148 163 184;
+  }
+
+  html {
+    @apply bg-bg;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+  }
+  ::selection {
+    @apply bg-brand/25;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand/60 ring-offset-2 ring-offset-bg;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface p-5 shadow-card;
+  }
+  .card-elevated {
+    @apply rounded-2xl border border-line bg-elevated p-5 shadow-card;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-white hover:bg-brand-hover dark:text-slate-900;
+  }
+  .btn-ghost {
+    @apply btn text-muted hover:bg-surface-2 hover:text-ink;
+  }
+  .btn-outline {
+    @apply btn border border-line bg-surface text-ink hover:bg-surface-2;
+  }
+  .btn-danger {
+    @apply btn bg-status-critical text-white hover:opacity-90 dark:text-slate-900;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .input {
+    @apply w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/70
+      outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20;
+  }
+  .gradient-text {
+    @apply bg-brand-gradient bg-clip-text text-transparent;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-muted;
+  }
+  .th {
+    @apply eyebrow whitespace-nowrap px-3 py-2.5 text-left;
+  }
+  .td {
+    @apply whitespace-nowrap px-3 py-2.5 align-top;
+  }
+  .skeleton {
+    @apply animate-pulse rounded-lg bg-surface-2;
+  }
+}

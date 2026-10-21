@@ -1,0 +1,18 @@
+{
+  "deviceId": "FESTNET_001",
+  "seq": 261,
+  "ts": 1760000002000,
+  "updatedAt": 1760000002410,
+  "worn": true,
+  "signal": { "perfusionIndex": 1.18, "beatsInChunk": 3, "ppgSamples": 200, "ppgOverflow": 0 },
+  "vitals": {
+    "bpm": 82,
+    "spo2": 98,
+    "hrv": { "rmssdMs": 38.5, "sdnnMs": 52.1, "ibiCount": 64 },
+    "stress": { "score": 34, "level": "low", "baselineReady": true }
+  },
+  "temperature": { "skinC": 34.21, "ambientC": 29.81, "coreEstC": 37.71 },
+  "motion": { "magG": 1.004, "state": "active", "stillSec": 0 },
+  "anomaly": { "active": false, "severity": "none" },
+  "latency": { "processingMs": 260, "endToEndMs": 410 }
+}

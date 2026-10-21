@@ -1,0 +1,38 @@
+{
+  "_comment": "SHAPE EXAMPLE ONLY (firmware v0.3.1 contract). Values are illustrative, not a real measurement.",
+  "deviceId": "FESTNET_001",
+  "fwVersion": "0.3.1",
+  "online": true,
+  "ts": 1760000000000,
+  "serverTs": 1760000000150,
+  "uptimeMs": 523400,
+  "updatedAtMs": 523400,
+  "sosActive": false,
+  "sosPressCount": 0,
+  "sensors": { "oled": true, "mlx90614": true, "max30102": true, "mpu6050": true, "gps": true },
+  "pulseRaw": { "red": 98213, "ir": 112394 },
+  "temperature": { "objectC": 34.21, "ambientC": 29.81 },
+  "motion": { "ax": 0.123, "ay": -0.31, "az": 9.742, "gx": 1.2, "gy": -0.4, "gz": 0.1 },
+  "gps": {
+    "fix": true,
+    "latitude": 6.9147,
+    "longitude": 79.9729,
+    "satellites": 7,
+    "speedMps": 0.41,
+    "headingDeg": 182.5,
+    "altitudeM": 12.3,
+    "hdop": 1.2
+  },
+  "battery": { "pct": null },
+  "net": { "transport": "wifi", "rssi": -61 },
+  "raw": {
+    "enabled": true,
+    "lastSeq": 261,
+    "pendingChunks": 0,
+    "droppedChunks": 0,
+    "ppgOverflowTotal": 0,
+    "lastChunkPpgSamples": 200,
+    "lastChunkImuSamples": 100,
+    "lastChunkDurationMs": 2000
+  }
+}
