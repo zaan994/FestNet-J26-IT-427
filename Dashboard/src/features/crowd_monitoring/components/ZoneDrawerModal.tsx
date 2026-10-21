@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { EventZone, GeoPoint, ZoneCategory } from '../../../types';
 import { Layers, X, Check } from 'lucide-react';
+import { ZONE_TYPE_LABELS } from '../constants/crowdConstants';
+import styles from '../styles/ZoneDrawerModal.module.css';
 
 interface ZoneDrawerModalProps {
   isOpen: boolean;
@@ -38,195 +40,146 @@ export const ZoneDrawerModal: React.FC<ZoneDrawerModalProps> = ({
         color,
         polygon: vertices,
       });
+      // Reset form
+      setName('');
+      setType('STAGE');
+      setCapacity(1500);
+      setSurgeThreshold(6.0);
+      setColor('#8b5cf6');
       onClose();
     } catch (err) {
       console.error('Failed to create zone:', err);
+      alert('Failed to create zone. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 2000,
-    }}>
-      <div className="fest-card" style={{ width: '100%', maxWidth: '480px', margin: '1rem' }}>
-        <div className="fest-card-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <div className={styles.overlay}>
+      <div className={`fest-card ${styles.modal}`}>
+        {/* Header */}
+        <div className={styles.header}>
+          <div className={styles.headerTitle}>
             <Layers size={20} color="#8b5cf6" />
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Save Digital Polygon Zone</h3>
+            <h3 className={styles.title}>Save Digital Polygon Zone</h3>
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-          >
+          <button onClick={onClose} className={styles.closeButton} aria-label="Close">
             <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+        {/* Form */}
+        <form onSubmit={handleSubmit} className={styles.form}>
+          {/* Zone Name */}
+          <div className={styles.formGroup}>
+            <label htmlFor="zoneName" className={styles.label}>
               Zone Name
             </label>
             <input
+              id="zoneName"
               type="text"
               required
               placeholder="e.g. VIP Lounge, South Ingress, Stage B"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid var(--border-color)',
-                color: '#ffffff',
-                fontSize: '0.9rem',
-              }}
+              className={styles.input}
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+          {/* Two Column Layout */}
+          <div className={styles.twoColumn}>
+            {/* Zone Category */}
+            <div className={styles.formGroup}>
+              <label htmlFor="zoneType" className={styles.label}>
                 Zone Category
               </label>
               <select
+                id="zoneType"
                 value={type}
                 onChange={(e) => setType(e.target.value as ZoneCategory)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  background: '#1e293b',
-                  border: '1px solid var(--border-color)',
-                  color: '#ffffff',
-                  fontSize: '0.9rem',
-                }}
+                className={styles.select}
               >
-                <option value="STAGE">Stage / Arena</option>
-                <option value="EXIT">Exit / Pathway</option>
-                <option value="FIRST_AID">Medical Tent</option>
-                <option value="RESTROOM">Restrooms</option>
-                <option value="FOOD_BEVERAGE">Food Village</option>
-                <option value="SECURITY">Security / Command</option>
+                {Object.entries(ZONE_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+            {/* Max Capacity */}
+            <div className={styles.formGroup}>
+              <label htmlFor="capacity" className={styles.label}>
                 Max Capacity
               </label>
               <input
+                id="capacity"
                 type="number"
                 min="50"
                 value={capacity}
                 onChange={(e) => setCapacity(Number(e.target.value))}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-color)',
-                  color: '#ffffff',
-                  fontSize: '0.9rem',
-                }}
+                className={styles.input}
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+          {/* Two Column Layout */}
+          <div className={styles.twoColumn}>
+            {/* Surge Threshold */}
+            <div className={styles.formGroup}>
+              <label htmlFor="surgeThreshold" className={styles.label}>
                 Surge Trigger Speed (km/h)
               </label>
               <input
+                id="surgeThreshold"
                 type="number"
                 step="0.5"
                 min="3.0"
                 max="15.0"
                 value={surgeThreshold}
                 onChange={(e) => setSurgeThreshold(Number(e.target.value))}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border-color)',
-                  color: '#ffffff',
-                  fontSize: '0.9rem',
-                }}
+                className={styles.input}
               />
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+            {/* Polygon Color */}
+            <div className={styles.formGroup}>
+              <label htmlFor="color" className={styles.label}>
                 Polygon Color
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className={styles.colorPicker}>
                 <input
+                  id="color"
                   type="color"
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    background: 'none',
-                  }}
+                  className={styles.colorInput}
                 />
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{color}</span>
+                <span className={styles.colorValue}>{color}</span>
               </div>
             </div>
           </div>
 
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '6px' }}>
+          {/* Vertex Info */}
+          <div className={styles.infoBox}>
             Boundaries: <b>{vertices.length} vertices</b> recorded from map clicks.
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+          {/* Form Actions */}
+          <div className={styles.formActions}>
             <button
               type="button"
               onClick={onClose}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                background: 'transparent',
-                border: '1px solid var(--border-color)',
-                color: '#ffffff',
-                cursor: 'pointer',
-              }}
+              className={styles.cancelButton}
+              disabled={isSaving}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isSaving}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                background: '#8b5cf6',
-                border: 'none',
-                color: '#ffffff',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
+              disabled={isSaving || !name.trim()}
+              className={styles.saveButton}
             >
               <Check size={16} />
               {isSaving ? 'Saving...' : 'Save Zone'}

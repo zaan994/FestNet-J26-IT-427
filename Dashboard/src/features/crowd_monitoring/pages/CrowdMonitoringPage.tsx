@@ -4,32 +4,41 @@ import { crowdApi } from '../../../services/crowdApi';
 import { CrowdMap } from '../../../components/maps/CrowdMap';
 import { ZoneDrawerModal } from '../components/ZoneDrawerModal';
 import { SurgeAlertBanner } from '../components/SurgeAlertBanner';
+import { MapLegend } from '../components/MapLegend';
+import { LoadingState } from '../components/LoadingState';
+import { ErrorState } from '../components/ErrorState';
+import { ZoneMetricCard } from '../components/ZoneMetricCard';
 import {
   Layers,
-  Compass,
-  Gauge,
-  Users,
-  ShieldAlert,
-  AlertTriangle,
   Play,
   RotateCcw,
   PlusCircle,
-  TrendingUp,
 } from 'lucide-react';
+import {
+  POLLING_INTERVAL_MS,
+  SIMULATION_DEFAULTS
+} from '../constants/crowdConstants';
+import styles from '../styles/CrowdMonitoring.module.css';
 
 export const CrowdMonitoringPage: React.FC = () => {
+  // State Management
   const [zones, setZones] = useState<EventZone[]>([]);
   const [metrics, setMetrics] = useState<CrowdMetric[]>([]);
   const [devices, setDevices] = useState<DeviceLocation[]>([]);
   const [alerts, setAlerts] = useState<SurgeAlert[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = useState<[number, number] | null>(null);
 
-  // Polygon Drawing Mode State
+  // UI State
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Polygon Drawing State
   const [isDrawingMode, setIsDrawingMode] = useState(false);
   const [drawingVertices, setDrawingVertices] = useState<GeoPoint[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Initial load & Polling loop (every 2.5 seconds)
+  // Data Fetching
   useEffect(() => {
     let isMounted = true;
 
@@ -47,14 +56,20 @@ export const CrowdMonitoringPage: React.FC = () => {
           setMetrics(mList);
           setDevices(dList);
           setAlerts(aList);
+          setError(null);
+          setIsLoading(false);
         }
       } catch (err) {
         console.error('Error fetching crowd data:', err);
+        if (isMounted) {
+          setError('Failed to load crowd monitoring data. Please check your connection.');
+          setIsLoading(false);
+        }
       }
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 2500);
+    const interval = setInterval(fetchData, POLLING_INTERVAL_MS);
 
     return () => {
       isMounted = false;
@@ -62,7 +77,7 @@ export const CrowdMonitoringPage: React.FC = () => {
     };
   }, []);
 
-  // Handler for adding vertices while drawing on map
+  // Polygon Drawing Handlers
   const handleAddVertex = (point: GeoPoint) => {
     setDrawingVertices((prev) => [...prev, point]);
   };
@@ -76,47 +91,61 @@ export const CrowdMonitoringPage: React.FC = () => {
   };
 
   const handleSaveZone = async (zoneData: Partial<EventZone>) => {
-    const newZone = await crowdApi.createZone(zoneData);
-    setZones((prev) => [...prev, newZone]);
-    setDrawingVertices([]);
+    try {
+      const newZone = await crowdApi.createZone(zoneData);
+      setZones((prev) => [...prev, newZone]);
+      setDrawingVertices([]);
+      setIsDrawingMode(false);
+    } catch (err) {
+      console.error('Failed to create zone:', err);
+      alert('Failed to create zone. Please try again.');
+    }
+  };
+
+  const handleCancelDrawing = () => {
     setIsDrawingMode(false);
+    setDrawingVertices([]);
   };
 
   const handleResolveAlert = async (alertId: string) => {
-    await crowdApi.resolveAlert(alertId);
-    setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    try {
+      await crowdApi.resolveAlert(alertId);
+      setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    } catch (err) {
+      console.error('Failed to resolve alert:', err);
+    }
   };
 
-  // Local Scenario Simulation: Stampede Surge Test
+  // Simulation Handlers
   const handleSimulateSurge = () => {
-    // Generate 10 devices in Main Stage moving rapidly toward North-East (45 deg) at 8.4 km/h
-    const surgeDevices: DeviceLocation[] = Array.from({ length: 10 }).map((_, i) => ({
+    const { DEVICE_COUNT, SURGE_SPEED, SURGE_HEADING, SURGE_COHERENCE, ZONE_ID, ZONE_NAME } = SIMULATION_DEFAULTS;
+
+    const surgeDevices: DeviceLocation[] = Array.from({ length: DEVICE_COUNT }).map((_, i) => ({
       deviceId: `BAND-SIM-${i + 1}`,
       attendeeId: `ATT-${200 + i}`,
       latitude: 7.1195 + (Math.random() - 0.5) * 0.0004,
       longitude: 80.0475 + (Math.random() - 0.5) * 0.0004,
-      speed: 8.4 + (Math.random() - 0.5) * 0.6,
-      heading: 45 + (Math.random() - 0.5) * 10,
+      speed: SURGE_SPEED + (Math.random() - 0.5) * 0.6,
+      heading: SURGE_HEADING + (Math.random() - 0.5) * 10,
       satellites: 7,
       fixQuality: 'Valid',
       timestamp: new Date().toISOString(),
-      currentZoneId: 'ZONE-MAIN-STAGE',
+      currentZoneId: ZONE_ID,
     }));
 
     setDevices(surgeDevices);
 
-    // Update metrics with surge
     setMetrics((prev) =>
       prev.map((m) =>
-        m.zoneId === 'ZONE-MAIN-STAGE'
+        m.zoneId === ZONE_ID
           ? {
               ...m,
-              deviceCount: 10,
-              sampleSize: 10,
-              averageSpeedKmH: 8.4,
-              dominantHeadingDeg: 45.0,
+              deviceCount: DEVICE_COUNT,
+              sampleSize: DEVICE_COUNT,
+              averageSpeedKmH: SURGE_SPEED,
+              dominantHeadingDeg: SURGE_HEADING,
               dominantDirectionCardinal: 'NE',
-              coherenceScore: 0.985,
+              coherenceScore: SURGE_COHERENCE,
               status: 'CRITICAL_SURGE',
               surgeDetected: true,
             }
@@ -126,17 +155,17 @@ export const CrowdMonitoringPage: React.FC = () => {
 
     const testAlert: SurgeAlert = {
       id: `SURGE-TEST-${Date.now()}`,
-      zoneId: 'ZONE-MAIN-STAGE',
-      zoneName: 'Main Stage Arena',
+      zoneId: ZONE_ID,
+      zoneName: ZONE_NAME,
       type: 'CROWD_SURGE',
       severity: 'CRITICAL',
-      message: 'SIMULATED CROWD SURGE: 10 bands moving North-East (45°) at 8.4 km/h (98% alignment)',
-      averageSpeedKmH: 8.4,
+      message: `SIMULATED CROWD SURGE: ${DEVICE_COUNT} bands moving North-East (${SURGE_HEADING}°) at ${SURGE_SPEED} km/h (${(SURGE_COHERENCE * 100).toFixed(0)}% alignment)`,
+      averageSpeedKmH: SURGE_SPEED,
       speedThresholdKmH: 6.0,
-      dominantHeadingDeg: 45.0,
+      dominantHeadingDeg: SURGE_HEADING,
       dominantDirectionCardinal: 'NE',
-      coherenceScore: 0.985,
-      deviceCount: 10,
+      coherenceScore: SURGE_COHERENCE,
+      deviceCount: DEVICE_COUNT,
       status: 'ACTIVE',
       timestamp: new Date().toISOString(),
     };
@@ -144,7 +173,6 @@ export const CrowdMonitoringPage: React.FC = () => {
     setAlerts((prev) => [testAlert, ...prev]);
   };
 
-  // Reset to normal dispersed state
   const handleResetSimulation = () => {
     setAlerts([]);
     setDevices([]);
@@ -159,116 +187,68 @@ export const CrowdMonitoringPage: React.FC = () => {
     );
   };
 
+  const handleRetry = () => {
+    setIsLoading(true);
+    setError(null);
+    window.location.reload();
+  };
+
+  // Render Loading State
+  if (isLoading) {
+    return (
+      <div className={styles.container}>
+        <LoadingState message="Initializing crowd monitoring system..." />
+      </div>
+    );
+  }
+
+  // Render Error State
+  if (error && zones.length === 0) {
+    return (
+      <div className={styles.container}>
+        <ErrorState message={error} onRetry={handleRetry} />
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Page Header with Action Controls */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h2 style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0 0 4px' }}>
-            Location & Crowd-Flow Tracking
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+    <div className={styles.container}>
+      {/* Page Header */}
+      <div className={styles.pageHeader}>
+        <div className={styles.headerContent}>
+          <h2 className={styles.title}>Location & Crowd-Flow Tracking</h2>
+          <p className={styles.subtitle}>
             Real-time GPS wearable tracking, digital polygon zone geofencing, crowd velocity vectors, and surge detection.
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className={styles.actionButtons}>
           {isDrawingMode ? (
             <>
-              <button
-                onClick={handleFinishPolygon}
-                style={{
-                  backgroundColor: '#10b981',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px 14px',
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
+              <button onClick={handleFinishPolygon} className={styles.completeButton}>
                 Complete Polygon ({drawingVertices.length} pts)
               </button>
-              <button
-                onClick={() => {
-                  setIsDrawingMode(false);
-                  setDrawingVertices([]);
-                }}
-                style={{
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-muted)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  padding: '8px 12px',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={handleCancelDrawing} className={styles.cancelButton}>
                 Cancel
               </button>
             </>
           ) : (
-            <button
-              onClick={() => setIsDrawingMode(true)}
-              style={{
-                backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                color: '#a78bfa',
-                border: '1px solid #8b5cf6',
-                borderRadius: '6px',
-                padding: '8px 14px',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
+            <button onClick={() => setIsDrawingMode(true)} className={styles.drawButton}>
               <PlusCircle size={16} />
               Draw Digital Zone
             </button>
           )}
 
-          {/* Quick Simulation Trigger Buttons */}
-          <button
-            onClick={handleSimulateSurge}
-            style={{
-              backgroundColor: 'rgba(239, 68, 68, 0.15)',
-              color: '#f87171',
-              border: '1px solid #ef4444',
-              borderRadius: '6px',
-              padding: '8px 14px',
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
+          <button onClick={handleSimulateSurge} className={styles.simulateButton}>
             <Play size={16} />
             Simulate Surge
           </button>
 
           <button
             onClick={handleResetSimulation}
+            className={styles.resetButton}
             title="Reset Simulation"
-            style={{
-              backgroundColor: 'transparent',
-              color: 'var(--text-muted)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '6px',
-              padding: '8px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
           >
             <RotateCcw size={16} />
           </button>
@@ -278,18 +258,115 @@ export const CrowdMonitoringPage: React.FC = () => {
       {/* Critical Surge Warning Banner */}
       <SurgeAlertBanner alerts={alerts} onResolveAlert={handleResolveAlert} />
 
-      {/* Interactive OpenStreetMap Leaflet Container */}
+      {/* Live Wearable Telemetry Status Bar */}
+      {(() => {
+        const physical = devices.find(
+          (d) => d.deviceId.includes('ESP32') || d.attendeeId === 'ATT-PHYSICAL-01'
+        );
+        if (physical) {
+          const isGpsValid = physical.fixQuality === 'Valid' && physical.satellites > 0;
+          return (
+            <div
+              style={{
+                marginBottom: '1rem',
+                padding: '0.85rem 1.25rem',
+                borderRadius: '10px',
+                backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10b981',
+                    boxShadow: '0 0 8px #10b981',
+                  }}
+                />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Live Wearable Band: <b>{physical.deviceId}</b></span>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        backgroundColor: isGpsValid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                        color: isGpsValid ? '#10b981' : '#f59e0b',
+                        border: `1px solid ${isGpsValid ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)'}`,
+                      }}
+                    >
+                      {isGpsValid ? `🛰️ Live GPS (${physical.satellites} Sats)` : '🏠 Indoor Fallback Coordinates'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '3px' }}>
+                    Coordinates: <b>{physical.latitude.toFixed(6)}, {physical.longitude.toFixed(6)}</b> &bull; Zone:{' '}
+                    <b>{physical.currentZoneId || 'Outside Defined Zones'}</b> &bull; Last Ping:{' '}
+                    {new Date(physical.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setFocusTarget([physical.latitude, physical.longitude])}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  backgroundColor: '#6366f1',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                🎯 Jump to Band on Map
+              </button>
+            </div>
+          );
+        }
+        return (
+          <div
+            style={{
+              marginBottom: '1rem',
+              padding: '0.75rem 1.25rem',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(148, 163, 184, 0.08)',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '0.82rem',
+              color: '#94a3b8',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>📡 Waiting for ESP32 Wearable Telemetry (Ensure Backend is running and ESP32 is powered on)...</span>
+            </div>
+            <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>Auto-refreshes every 2s</span>
+          </div>
+        );
+      })()}
+
+      {/* Interactive Map */}
       <div className="fest-card" style={{ padding: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className={styles.mapHeader}>
+          <div className={styles.mapTitle}>
             <Layers size={18} color="#8b5cf6" />
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Event Environment & Crowd-Flow Map</h3>
+            <h3 className={styles.mapTitleText}>Event Environment & Crowd-Flow Map</h3>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            <span>🔵 Walking (&lt; 6 km/h)</span>
-            <span>🔴 High Speed (&ge; 6 km/h)</span>
-            <span>⬆ Flow Direction Arrow</span>
-          </div>
+          <MapLegend />
         </div>
 
         <CrowdMap
@@ -301,166 +378,31 @@ export const CrowdMonitoringPage: React.FC = () => {
           onAddVertex={handleAddVertex}
           selectedZoneId={selectedZoneId}
           onSelectZone={setSelectedZoneId}
+          focusTarget={focusTarget}
         />
       </div>
 
-      {/* Sector-by-Sector Crowd Vector & Safety Matrix */}
-      <div>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem' }}>
+      {/* Zone Analysis Section */}
+      <div className={styles.zoneAnalysisSection}>
+        <h3 className={styles.sectionTitle}>
           Zone Crowd-Flow & Vector Analysis Matrix
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.25rem' }}>
+        <div className={styles.zoneGrid}>
           {zones.map((zone) => {
             const metric = metrics.find((m) => m.zoneId === zone.id);
-            const isSurge = metric?.status === 'CRITICAL_SURGE';
-            const isElevated = metric?.status === 'ELEVATED_FLOW';
-            const isCoordinated = metric?.status === 'COORDINATED_FLOW';
-
-            const occupancy = Math.round(((metric?.deviceCount || 0) / zone.capacity) * 100);
-
             return (
-              <div
+              <ZoneMetricCard
                 key={zone.id}
-                className="fest-card"
-                style={{
-                  borderColor: isSurge ? '#ef4444' : isElevated ? '#f59e0b' : 'var(--border-color)',
-                  borderWidth: isSurge ? '2px' : '1px',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Top border indicator */}
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '4px',
-                  backgroundColor: isSurge ? '#ef4444' : isElevated ? '#f59e0b' : zone.color || '#3b82f6',
-                }} />
-
-                <div className="fest-card-header" style={{ marginTop: '4px' }}>
-                  <div>
-                    <h4 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{zone.name}</h4>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Type: {zone.type}</span>
-                  </div>
-
-                  <span
-                    className="fest-badge"
-                    style={{
-                      backgroundColor: isSurge ? 'rgba(239, 68, 68, 0.2)' : isElevated ? 'rgba(245, 158, 11, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                      color: isSurge ? '#f87171' : isElevated ? '#fbbf24' : '#60a5fa',
-                      fontWeight: 800,
-                      fontSize: '0.7rem',
-                    }}
-                  >
-                    {metric?.status || 'NORMAL_STATIC'}
-                  </span>
-                </div>
-
-                {/* Research Metric: Average Vector & Flow Direction */}
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  borderRadius: '8px',
-                  padding: '0.85rem',
-                  margin: '1rem 0',
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '0.75rem',
-                }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      <Compass size={13} />
-                      DOMINANT FLOW
-                    </div>
-                    <p style={{ fontSize: '1.1rem', fontWeight: 800, margin: '2px 0 0' }}>
-                      {metric ? `${metric.dominantDirectionCardinal} (${metric.dominantHeadingDeg}°)` : 'Static'}
-                    </p>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      <Gauge size={13} />
-                      AVG VELOCITY
-                    </div>
-                    <p style={{ fontSize: '1.1rem', fontWeight: 800, margin: '2px 0 0', color: isSurge ? '#f87171' : 'inherit' }}>
-                      {metric?.averageSpeedKmH || 0} km/h
-                    </p>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      <TrendingUp size={13} />
-                      COHERENCE (R)
-                    </div>
-                    <p style={{ fontSize: '1.1rem', fontWeight: 800, margin: '2px 0 0' }}>
-                      {metric ? `${(metric.coherenceScore * 100).toFixed(0)}%` : '0%'}
-                    </p>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      <Users size={13} />
-                      BANDS IN ZONE
-                    </div>
-                    <p style={{ fontSize: '1.1rem', fontWeight: 800, margin: '2px 0 0' }}>
-                      {metric?.deviceCount || 0} active
-                    </p>
-                  </div>
-                </div>
-
-                {/* Surge Threshold Info */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                  <span>Surge Threshold: <b>{zone.surgeSpeedThresholdKmH} km/h</b></span>
-                  <span>Capacity: <b>{zone.capacity}</b></span>
-                </div>
-
-                {/* Status Evaluation Footer */}
-                <div style={{
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  backgroundColor: isSurge
-                    ? 'rgba(239, 68, 68, 0.15)'
-                    : isElevated
-                    ? 'rgba(245, 158, 11, 0.15)'
-                    : isCoordinated
-                    ? 'rgba(59, 130, 246, 0.15)'
-                    : 'rgba(16, 185, 129, 0.1)',
-                  color: isSurge ? '#fca5a5' : isElevated ? '#fde68a' : isCoordinated ? '#bfdbfe' : '#a7f3d0',
-                }}>
-                  {isSurge ? (
-                    <>
-                      <ShieldAlert size={15} />
-                      <span><b>SURGE DETECTED!</b> Rapid crowd displacement.</span>
-                    </>
-                  ) : isElevated ? (
-                    <>
-                      <AlertTriangle size={15} />
-                      <span>Elevated velocity approaching trigger threshold.</span>
-                    </>
-                  ) : isCoordinated ? (
-                    <>
-                      <Compass size={15} />
-                      <span>Synchronized migration toward {metric?.dominantDirectionCardinal}.</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Normal dispersed movement within safe parameters.</span>
-                    </>
-                  )}
-                </div>
-              </div>
+                zone={zone}
+                metric={metric}
+              />
             );
           })}
         </div>
       </div>
 
-      {/* Polygon Zone Configuration Modal */}
+      {/* Zone Configuration Modal */}
       <ZoneDrawerModal
         isOpen={isModalOpen}
         vertices={drawingVertices}
@@ -474,4 +416,5 @@ export const CrowdMonitoringPage: React.FC = () => {
     </div>
   );
 };
+
 export default CrowdMonitoringPage;

@@ -1,0 +1,261 @@
+/* Zone Drawer Modal Styles */
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal {
+  width: 100%;
+  max-width: 480px;
+  margin: 1rem;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.header {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.closeButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: #ffffff;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.select {
+  background: #1e293b;
+  cursor: pointer;
+}
+
+.select option {
+  background: #1e293b;
+  color: #ffffff;
+}
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.colorPicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colorInput {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  background: none;
+}
+
+.colorInput::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.colorInput::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+.colorValue {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.infoBox {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.infoBox b {
+  color: var(--text-primary);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.cancelButton,
+.saveButton {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancelButton {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: #ffffff;
+}
+
+.cancelButton:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.cancelButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.saveButton {
+  background: #8b5cf6;
+  border: none;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saveButton:hover:not(:disabled) {
+  background: #7c3aed;
+  transform: translateY(-1px);
+}
+
+.saveButton:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.saveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive Design */
+@media (max-width: 568px) {
+  .modal {
+    margin: 0.5rem;
+  }
+
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+  }
+
+  .cancelButton,
+  .saveButton {
+    width: 100%;
+    justify-content: center;
+  }
+}

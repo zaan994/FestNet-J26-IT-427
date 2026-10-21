@@ -1,75 +1,178 @@
-#include <WiFi.h>
 #include <HTTPClient.h>
 #include <TinyGPSPlus.h>
+#include <WiFi.h>
 
 // ==========================================
 // Network & Backend Configuration
 // ==========================================
-const char* WIFI_SSID     = "SLT_FIBRE";
-const char* WIFI_PASSWORD = "732662677v";
+// Try different formats for iPhone name
+const char *WIFI_SSID = "AshiniPhone"; // Using Unicode apostrophe
+const char *WIFI_PASSWORD = "12345679";
 
-// Local server IP address (Port 5001)
-const char* BACKEND_URL   = "http://192.168.1.4:5001/api/telemetry";
+// Backend server (Your computer IP - UPDATE THIS!)
+const char *BACKEND_IP = "172.20.10.13"; // ← CHANGE THIS to your IP from ipconfig
+const int BACKEND_PORT = 5001;
+char BACKEND_URL[100];
+
+// ==========================================
+// GPS Indoor / Fallback Test Coordinates
+// ==========================================
+// When indoors, GPS modules cannot receive satellite signals.
+// In that case, the ESP32 transmits these coordinates.
+// You can customize these to your current location (e.g. from Google Maps):
+const double FALLBACK_LAT = 7.119075;
+const double FALLBACK_LNG = 80.047517;
+const double FALLBACK_ALTITUDE = 55.0;
 
 // Unique Wearable Device Identifier
-const char* DEVICE_ID     = "BAND-ESP32-001";
-const char* ATTENDEE_ID   = "ATT-PHYSICAL-01";
+const char *DEVICE_ID = "BAND-ESP32-001";
+const char *ATTENDEE_ID = "ATT-PHYSICAL-01";
 
 // Transmission interval (milliseconds)
-const unsigned long TRANSMIT_INTERVAL_MS = 3000;
+const unsigned long TRANSMIT_INTERVAL_MS = 5000; // Increased to 5 seconds
 unsigned long lastTransmitTime = 0;
 
-// GPS Module Serial Interface (NEO-6M on ESP32 Pins 16 RX, 17 TX)
+// GPS Module Serial Interface
 TinyGPSPlus gps;
 #define gpsSerial Serial2
 
+// Connection tracking
+int failedAttempts = 0;
+const int MAX_FAILED_BEFORE_RECONNECT = 10;
+bool wifiConnected = false;
+
 void connectWiFi() {
-  Serial.print("Connecting to Wi-Fi SSID: ");
+  Serial.println("\n==========================================");
+  Serial.println("WiFi Connection Attempt");
+  Serial.println("==========================================");
+
+  // Print what we're trying
+  Serial.print("SSID (hex): ");
+  for (int i = 0; i < strlen(WIFI_SSID); i++) {
+    Serial.printf("%02X ", (unsigned char)WIFI_SSID[i]);
+  }
+  Serial.println();
+  Serial.print("SSID (text): ");
   Serial.println(WIFI_SSID);
+  Serial.print("Password length: ");
+  Serial.println(strlen(WIFI_PASSWORD));
+  Serial.println("==========================================");
+
+  // Properly disconnect first
+  WiFi.disconnect(true);
+  delay(1000);
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  delay(500);
 
-  unsigned long startAttemptTime = millis();
-  // Attempt connection for up to 12 seconds
-  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 12000) {
-    delay(500);
-    Serial.print(".");
+  // Try multiple times
+  for (int attempt = 1; attempt <= 3; attempt++) {
+    Serial.print("\nAttempt ");
+    Serial.print(attempt);
+    Serial.print(" of 3...");
+
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+    unsigned long startTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startTime < 10000) {
+      delay(500);
+      Serial.print(".");
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\n\n✓✓✓ SUCCESS! Wi-Fi Connected! ✓✓✓");
+      Serial.print("ESP32 IP: ");
+      Serial.println(WiFi.localIP());
+      Serial.print("Gateway: ");
+      Serial.println(WiFi.gatewayIP());
+      Serial.print("Signal: ");
+      Serial.print(WiFi.RSSI());
+      Serial.println(" dBm");
+      wifiConnected = true;
+      Serial.println("==========================================\n");
+      return;
+    }
+
+    Serial.println(" Failed!");
+    WiFi.disconnect();
+    delay(2000);
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[Wi-Fi] Connected successfully!");
-    Serial.print("[Wi-Fi] ESP32 Assigned IP: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("\n[Wi-Fi] Connection timed out. Will retry in background loop.");
-  }
+  // All attempts failed
+  Serial.println("\n\n✗✗✗ FAILED - Could not connect ✗✗✗");
+  Serial.println("\n*** TROUBLESHOOTING ***");
+  Serial.println("1. Is iPhone hotspot actually ON?");
+  Serial.println("   Settings → Personal Hotspot → ON");
+  Serial.println("2. Check hotspot name exactly matches:");
+  Serial.print("   Looking for: '");
+  Serial.print(WIFI_SSID);
+  Serial.println("'");
+  Serial.println("3. Is password correct? (case-sensitive)");
+  Serial.println("4. Try restarting iPhone hotspot");
+  Serial.println("5. Try changing iPhone hotspot name to:");
+  Serial.println("   'AshiniPhone' (no apostrophe, no space)");
+  Serial.println("==========================================\n");
+
+  wifiConnected = false;
 }
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  delay(2000);
 
-  Serial.println("\n==========================================");
-  Serial.println("  FestNet Wearable GPS Telemetry Client   ");
-  Serial.println("==========================================");
+  Serial.println("\n\n");
+  Serial.println("========================================");
+  Serial.println("  FestNet Wearable GPS Telemetry");
+  Serial.println("========================================");
+  Serial.print("Device ID: ");
+  Serial.println(DEVICE_ID);
+  Serial.println("========================================\n");
 
-  // Initialize GPS UART at 9600 baud (ESP32 RX=Pin 16, TX=Pin 17)
+  // Construct backend URL
+  snprintf(BACKEND_URL, sizeof(BACKEND_URL), "http://%s:%d/api/telemetry",
+           BACKEND_IP, BACKEND_PORT);
+  Serial.print("Backend URL: ");
+  Serial.println(BACKEND_URL);
+  Serial.println();
+
+  // Initialize GPS
   gpsSerial.begin(9600, SERIAL_8N1, 16, 17);
-  Serial.println("[GPS] Listening on Serial2 (RX: 16, TX: 17)...");
+  Serial.println("GPS initialized (RX=16, TX=17)\n");
 
-  // Connect to Local Wi-Fi
+  // Try to connect WiFi
   connectWiFi();
+
+  if (wifiConnected) {
+    Serial.println("✓ Ready to send telemetry\n");
+  } else {
+    Serial.println("⚠ WARNING: No WiFi - will retry periodically\n");
+  }
+
+  Serial.println("========================================\n");
 }
 
 void loop() {
-  // Feed incoming GPS NMEA sentences to TinyGPSPlus parser
+  // Check WiFi periodically but don't spam
+  static unsigned long lastWiFiCheck = 0;
+  if (!wifiConnected && millis() - lastWiFiCheck > 30000) {
+    Serial.println("\n[INFO] Retrying WiFi connection...");
+    lastWiFiCheck = millis();
+    connectWiFi();
+  }
+
+  // Feed GPS data
   while (gpsSerial.available() > 0) {
     char c = gpsSerial.read();
     gps.encode(c);
   }
 
-  // Periodic Telemetry Transmission
+  // Only send if WiFi is connected
+  if (!wifiConnected) {
+    delay(1000);
+    return;
+  }
+
+  // Periodic telemetry transmission
   unsigned long now = millis();
   if (now - lastTransmitTime >= TRANSMIT_INTERVAL_MS) {
     lastTransmitTime = now;
@@ -78,76 +181,82 @@ void loop() {
 }
 
 void sendTelemetryToBackend() {
-  // Auto-reconnect Wi-Fi if connection was dropped
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[Wi-Fi] Reconnecting...");
-    WiFi.reconnect();
-    return;
-  }
-
-  // Read latest GPS metrics
-  double lat = 0.0;
-  double lng = 0.0;
+  // Read GPS metrics
+  double lat = FALLBACK_LAT;
+  double lng = FALLBACK_LNG;
   double speedKmH = 0.0;
   double headingDeg = 0.0;
-  double altitudeM = 0.0;
-  int satellites = gps.satellites.value();
-  bool hasValidFix = gps.location.isValid();
+  double altitudeM = FALLBACK_ALTITUDE;
+  int satellites = 0;
+  bool hasValidFix = false;
 
-  if (hasValidFix) {
+  if (gps.location.isValid()) {
     lat = gps.location.lat();
     lng = gps.location.lng();
     speedKmH = gps.speed.kmph();
     headingDeg = gps.course.deg();
     altitudeM = gps.altitude.meters();
-  } else {
-    // If testing indoors without direct satellite sky view:
-    // Report last known / test festival coordinates so device appears on the live map
-    lat = 7.119075;
-    lng = 80.047517;
-    speedKmH = 0.0;
-    headingDeg = 0.0;
-    altitudeM = 55.0;
+    satellites = gps.satellites.value();
+    hasValidFix = true;
   }
 
   // Construct JSON payload
   char payload[350];
   snprintf(payload, sizeof(payload),
-    "{\"deviceId\":\"%s\",\"attendeeId\":\"%s\",\"latitude\":%.6f,\"longitude\":%.6f,\"altitude\":%.1f,\"speed\":%.2f,\"heading\":%.1f,\"satellites\":%d,\"fixQuality\":\"%s\"}",
-    DEVICE_ID,
-    ATTENDEE_ID,
-    lat,
-    lng,
-    altitudeM,
-    speedKmH,
-    headingDeg,
-    satellites,
-    hasValidFix ? "Valid" : "SimulatedIndoor"
-  );
+           "{\"deviceId\":\"%s\",\"attendeeId\":\"%s\",\"latitude\":%.6f,"
+           "\"longitude\":%.6f,\"altitude\":%.1f,\"speed\":%.2f,\"heading\":%."
+           "1f,\"satellites\":%d,\"fixQuality\":\"%s\"}",
+           DEVICE_ID, ATTENDEE_ID, lat, lng, altitudeM, speedKmH, headingDeg,
+           satellites, hasValidFix ? "Valid" : "SimulatedIndoor");
 
-  Serial.println("\n------------------------------------------");
-  Serial.print("[HTTP POST] Transmitting to: ");
-  Serial.println(BACKEND_URL);
-  Serial.print("[Payload] ");
-  Serial.println(payload);
+  Serial.println("------------------------------------------");
+  Serial.print("[");
+  Serial.print(millis() / 1000);
+  Serial.print("s] Sending...");
+
+  if (hasValidFix) {
+    Serial.printf(" GPS:OK (%d sats, Lat:%.6f, Lng:%.6f)\n", satellites, lat, lng);
+  } else {
+    Serial.println(" GPS:Fallback (Indoor mode - no satellite lock)");
+    Serial.printf("      Coordinates sent: %.6f, %.6f\n", lat, lng);
+    if (gps.charsProcessed() == 0) {
+      Serial.println("      [!] Warning: 0 bytes received from GPS module.");
+      Serial.println("          Check wiring: ESP32 Pin 16 (RX) -> GPS TX | Pin 17 (TX) -> GPS RX");
+    } else {
+      Serial.printf("      [i] GPS module active (chars: %lu). Waiting for satellites...\n", gps.charsProcessed());
+      Serial.println("          Move near a window or outdoors to acquire satellite lock.");
+    }
+  }
 
   HTTPClient http;
   http.begin(BACKEND_URL);
   http.addHeader("Content-Type", "application/json");
+  http.setTimeout(5000);
 
   int httpResponseCode = http.POST(payload);
 
   if (httpResponseCode > 0) {
-    Serial.print("[HTTP Success] Response Code: ");
-    Serial.println(httpResponseCode);
-    String response = http.getString();
-    Serial.print("[Server Response] ");
-    Serial.println(response);
+    Serial.print("Backend: ✓ SUCCESS (");
+    Serial.print(httpResponseCode);
+    Serial.println(")");
+    failedAttempts = 0;
   } else {
-    Serial.print("[HTTP Error] Failed, error: ");
-    Serial.println(http.errorToString(httpResponseCode).c_str());
+    failedAttempts++;
+    Serial.print("Backend: ✗ FAILED (");
+    Serial.print(http.errorToString(httpResponseCode));
+    Serial.println(")");
+
+    if (failedAttempts == 1) {
+      Serial.println("\n*** Backend not responding ***");
+      Serial.println("1. Is backend running? (npm run dev)");
+      Serial.print("2. Test: http://");
+      Serial.print(BACKEND_IP);
+      Serial.println(":5001/api/health");
+      Serial.println("3. Computer on same WiFi (iPhone hotspot)?");
+      Serial.println("4. Firewall blocking port 5001?");
+    }
   }
 
   http.end();
-  Serial.println("------------------------------------------");
+  Serial.println("------------------------------------------\n");
 }

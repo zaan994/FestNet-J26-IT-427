@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Polygon, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { EventZone, CrowdMetric, DeviceLocation, GeoPoint } from '../../types';
@@ -13,7 +13,21 @@ interface CrowdMapProps {
   onAddVertex: (point: GeoPoint) => void;
   selectedZoneId?: string | null;
   onSelectZone: (zoneId: string) => void;
+  focusTarget?: [number, number] | null;
 }
+
+// Controller to fly smoothly to selected device or coordinate
+const MapViewController: React.FC<{
+  targetLocation?: [number, number] | null;
+}> = ({ targetLocation }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (targetLocation && !isNaN(targetLocation[0]) && !isNaN(targetLocation[1])) {
+      map.flyTo(targetLocation, 17, { duration: 1.2 });
+    }
+  }, [targetLocation, map]);
+  return null;
+};
 
 // Map click handler when drawing custom digital polygon zones
 const DrawingHandler: React.FC<{
@@ -43,26 +57,40 @@ function calculateCentroid(points: GeoPoint[]): [number, number] {
 }
 
 // Custom DivIcon for Wearable Device dot
-function createDeviceIcon(speed: number, heading: number, isSelected: boolean) {
+function createDeviceIcon(speed: number, heading: number, isSelected: boolean, isPhysical: boolean = false) {
   const isMoving = speed >= 1.0;
-  const color = speed >= 6.0 ? '#ef4444' : isMoving ? '#3b82f6' : '#10b981';
+  const color = isPhysical ? '#6366f1' : (speed >= 6.0 ? '#ef4444' : isMoving ? '#3b82f6' : '#10b981');
+  const size = isPhysical ? 22 : 18;
 
   return L.divIcon({
     className: 'custom-device-marker',
     html: `
       <div style="
         position: relative;
-        width: 18px;
-        height: 18px;
+        width: ${size}px;
+        height: ${size}px;
         background: ${color};
         border: 2px solid #ffffff;
         border-radius: 50%;
-        box-shadow: 0 0 8px ${color};
+        box-shadow: 0 0 10px ${color};
         display: flex;
         align-items: center;
         justify-content: center;
         transform: rotate(${heading}deg);
       ">
+        ${isPhysical ? `
+          <div style="
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            border: 2px solid ${color};
+            border-radius: 50%;
+            animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+            opacity: 0.6;
+          "></div>
+        ` : ''}
         ${isMoving ? `
           <div style="
             width: 0;
@@ -72,11 +100,11 @@ function createDeviceIcon(speed: number, heading: number, isSelected: boolean) {
             border-bottom: 7px solid #ffffff;
             margin-top: -3px;
           "></div>
-        ` : ''}
+        ` : `<div style="width: 6px; height: 6px; background: #ffffff; border-radius: 50%;"></div>`}
       </div>
     `,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 
@@ -129,14 +157,37 @@ export const CrowdMap: React.FC<CrowdMapProps> = ({
   onAddVertex,
   selectedZoneId,
   onSelectZone,
+  focusTarget,
 }) => {
   // Center around event location
   const center: [number, number] = [7.1192, 80.0474];
   const [mapLayer, setMapLayer] = useState<'streets' | 'satellite'>('streets');
+  const [activeTarget, setActiveTarget] = useState<[number, number] | null>(null);
+
+  // Sync external focusTarget if passed
+  useEffect(() => {
+    if (focusTarget) {
+      setActiveTarget(focusTarget);
+    }
+  }, [focusTarget]);
+
+  const physicalDevice = devices.find(
+    (d) => d.deviceId.includes('ESP32') || d.attendeeId === 'ATT-PHYSICAL-01'
+  ) || (devices.length > 0 ? devices[0] : null);
+
+  const handleFocusDevice = () => {
+    if (physicalDevice) {
+      setActiveTarget([physicalDevice.latitude, physicalDevice.longitude]);
+    }
+  };
+
+  const handleResetCenter = () => {
+    setActiveTarget([center[0], center[1]]);
+  };
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-      {/* Map layer switcher (Streets / Satellite) */}
+      {/* Map layer switcher & Focus controls */}
       <div style={{
         position: 'absolute',
         top: '12px',
@@ -145,11 +196,48 @@ export const CrowdMap: React.FC<CrowdMapProps> = ({
         backgroundColor: 'rgba(15, 23, 42, 0.85)',
         border: '1px solid var(--border-color)',
         borderRadius: '8px',
-        padding: '3px',
+        padding: '4px',
         display: 'flex',
-        gap: '4px',
+        gap: '6px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
       }}>
+        {physicalDevice && (
+          <button
+            onClick={handleFocusDevice}
+            title="Pan directly to your ESP32 Wearable Band"
+            style={{
+              padding: '5px 10px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              borderRadius: '6px',
+              border: '1px solid #6366f1',
+              cursor: 'pointer',
+              backgroundColor: '#6366f1',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            🎯 Focus Band ({physicalDevice.deviceId})
+          </button>
+        )}
+        <button
+          onClick={handleResetCenter}
+          title="Center on Festival Grounds"
+          style={{
+            padding: '5px 10px',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            borderRadius: '6px',
+            border: 'none',
+            cursor: 'pointer',
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            color: '#ffffff',
+          }}
+        >
+          🏟️ Venue
+        </button>
         <button
           onClick={() => setMapLayer('streets')}
           style={{
@@ -163,7 +251,7 @@ export const CrowdMap: React.FC<CrowdMapProps> = ({
             color: '#ffffff',
           }}
         >
-          🗺️ Streets (OSM)
+          🗺️ Streets
         </button>
         <button
           onClick={() => setMapLayer('satellite')}
@@ -210,6 +298,7 @@ export const CrowdMap: React.FC<CrowdMapProps> = ({
         zoom={17}
         style={{ width: '100%', height: '100%', background: '#0b0f17' }}
       >
+        <MapViewController targetLocation={activeTarget} />
         <DrawingHandler isDrawingMode={isDrawingMode} onAddVertex={onAddVertex} />
 
         {/* 100% Free Tile Layers (Zero API Key Required) */}
@@ -304,23 +393,37 @@ export const CrowdMap: React.FC<CrowdMapProps> = ({
         )}
 
         {/* Render Live Device Markers */}
-        {devices.map((device) => (
-          <Marker
-            key={device.deviceId}
-            position={[device.latitude, device.longitude]}
-            icon={createDeviceIcon(device.speed, device.heading, false)}
-          >
-            <Popup>
-              <div style={{ color: '#0f172a', fontSize: '0.8rem' }}>
-                <b>Band ID:</b> {device.deviceId}<br />
-                <b>Speed:</b> {device.speed} km/h<br />
-                <b>Heading:</b> {device.heading}°<br />
-                <b>Satellites:</b> {device.satellites}<br />
-                <b>Zone:</b> {device.currentZoneId || 'None'}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {devices.map((device) => {
+          const isPhysical = device.deviceId.includes('ESP32') || device.attendeeId === 'ATT-PHYSICAL-01';
+          return (
+            <Marker
+              key={device.deviceId}
+              position={[device.latitude, device.longitude]}
+              icon={createDeviceIcon(device.speed, device.heading, false, isPhysical)}
+            >
+              <Popup>
+                <div style={{ color: '#0f172a', fontSize: '0.82rem', minWidth: '190px' }}>
+                  <div style={{ fontWeight: 800, color: '#4f46e5', marginBottom: '4px', fontSize: '0.88rem' }}>
+                    📡 {device.deviceId} {isPhysical ? '(Physical Wearable)' : ''}
+                  </div>
+                  <div><b>Attendee:</b> {device.attendeeId || 'N/A'}</div>
+                  <div><b>Coordinates:</b> {device.latitude.toFixed(6)}, {device.longitude.toFixed(6)}</div>
+                  <div>
+                    <b>GPS Quality:</b>{' '}
+                    <span style={{ color: device.fixQuality === 'Valid' ? '#16a34a' : '#d97706', fontWeight: 700 }}>
+                      {device.fixQuality === 'Valid' ? `✓ Satellite Fix (${device.satellites} sats)` : '⚠ Fallback / Indoor'}
+                    </span>
+                  </div>
+                  <div><b>Speed:</b> {device.speed} km/h | <b>Heading:</b> {device.heading}°</div>
+                  <div><b>Zone:</b> {device.currentZoneId || 'Outside Defined Zones'}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '4px' }}>
+                    Last Ping: {new Date(device.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
     </div>
   );
