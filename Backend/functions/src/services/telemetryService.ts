@@ -4,6 +4,7 @@ import { telemetryRepository } from '../repositories/telemetryRepository';
 import { zoneService } from './zoneService';
 import { crowdAnalysisService } from './crowdAnalysisService';
 import { haversineDistance, calculateBearing } from '../utils/geoMath';
+import { wellnessService } from './wellnessService';
 
 class TelemetryService {
   async ingestTelemetry(dto: IngestTelemetryDTO): Promise<{
@@ -55,6 +56,24 @@ class TelemetryService {
 
     // Persist telemetry
     await telemetryRepository.saveTelemetry(telemetry);
+
+    // If wearable sent wellness data (bpm or bodyTemperature), pass to wellnessService
+    if (dto.bpm !== undefined || dto.bodyTemperature !== undefined) {
+      const bpm = dto.bpm ?? 75;
+      const bodyTemp = dto.bodyTemperature ?? 37.0;
+      try {
+        await wellnessService.ingestWellnessReading({
+          deviceId: telemetry.deviceId,
+          attendeeId: telemetry.attendeeId,
+          bpm,
+          bodyTemperature: bodyTemp,
+          spO2: dto.spO2,
+          timestamp: telemetry.timestamp,
+        });
+      } catch (err) {
+        console.error('[TelemetryService] Wellness sync error:', err);
+      }
+    }
 
     return { success: true, telemetry };
   }

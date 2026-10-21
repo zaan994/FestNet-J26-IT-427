@@ -4,6 +4,14 @@ import { ingestTelemetry, getLiveTelemetry, getDeviceHistory } from './controlle
 import { getAllZones, getZoneById, createZone, updateZone, deleteZone } from './controllers/zoneController';
 import { getAllMetrics, getMetricByZoneId, triggerAnalysis } from './controllers/crowdController';
 import { getAllAlerts, acknowledgeAlert, resolveAlert } from './controllers/alertController';
+import {
+  ingestWellnessReading,
+  logHydration,
+  getHydrationReminder,
+  getWellnessDashboard,
+  getPostEventReport,
+} from './controllers/wellnessController';
+import { ioTBridgeService } from './services/ioTBridgeService';
 
 export const app = express();
 
@@ -42,5 +50,18 @@ app.post('/api/crowd/analyze', triggerAnalysis);
 app.get('/api/alerts', getAllAlerts);
 app.post('/api/alerts/:id/acknowledge', acknowledgeAlert);
 app.post('/api/alerts/:id/resolve', resolveAlert);
+
+// Hydration & Wellness Management Endpoints
+app.post('/api/wellness/reading', ingestWellnessReading);
+app.post('/api/wellness/hydration', logHydration);
+app.get('/api/wellness/reminder/:deviceId', getHydrationReminder);
+app.get('/api/wellness/dashboard/:deviceId', getWellnessDashboard);
+app.get('/api/wellness/report/:deviceId', getPostEventReport);
+
+// IoT Bridge Live Raw Snapshot Endpoint
+app.get('/api/iot/snapshot', (req, res) => {
+  const snapshot = ioTBridgeService.getLatestSnapshot();
+  res.json({ success: true, snapshot });
+});
 
 export default app;

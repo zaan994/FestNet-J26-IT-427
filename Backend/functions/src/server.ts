@@ -1,6 +1,7 @@
 import { app } from './index';
 import { CONFIG } from './config/constants';
 import { crowdAnalysisService } from './services/crowdAnalysisService';
+import { ioTBridgeService } from './services/ioTBridgeService';
 
 const PORT = CONFIG.PORT;
 
@@ -18,10 +19,14 @@ const server = app.listen(PORT, () => {
     - GET  /api/crowd/metrics        (Crowd Flow Vectors & Coherence)
     - GET  /api/alerts               (Surge Warnings & Bottlenecks)
     - GET  /api/health               (Health Check)
+    - GET  /api/iot/snapshot         (Live Physical Device Telemetry)
 =============================================================
   Automated Crowd Analysis Engine running every ${CONFIG.CROWD_ANALYSIS_INTERVAL_MS / 1000}s.
 =============================================================
 `);
+
+  // Start real-time bridge to physical ESP32 device
+  ioTBridgeService.start();
 });
 
 // Periodic background crowd flow analysis loop
@@ -36,6 +41,7 @@ const crowdInterval = setInterval(async () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   clearInterval(crowdInterval);
+  ioTBridgeService.stop();
   server.close(() => {
     console.log('\n[Server] FestNet backend shut down gracefully.');
     process.exit(0);

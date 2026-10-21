@@ -131,3 +131,112 @@ export interface SurgeAlert {
   status: 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED';
   timestamp: string;
 }
+
+// ==========================================
+// Hydration & Wellness Management Types
+// ==========================================
+
+export type HeatStressLevel = 'Low' | 'Moderate' | 'High' | 'Critical';
+
+export interface HeatStressReading {
+  id: string;
+  deviceId: string;
+  attendeeId?: string;
+  bpm: number;
+  bodyTemperature: number;
+  wbgtIndex: number;
+  level: HeatStressLevel;
+  timestamp: string;
+}
+
+export interface HydrationLogEntry {
+  id: string;
+  deviceId: string;
+  attendeeId?: string;
+  amountMl: number;
+  timestamp: string;
+  note?: string;
+}
+
+export interface HydrationReminder {
+  deviceId: string;
+  nextReminderAt: string;
+  intervalMinutes: number;
+  bpmGradient: number;
+  lastUpdated: string;
+}
+
+export interface HourlyWellnessSnapshot {
+  deviceId: string;
+  hour: string;
+  avgBpm: number;
+  peakBpm: number;
+  avgSpO2: number;
+  avgHeatStressIndex: number;
+  dominantLevel: HeatStressLevel;
+  hydrationMl: number;
+}
+
+export interface WellnessDashboard {
+  deviceId: string;
+  generatedAt: string;
+  hourlySnapshots: HourlyWellnessSnapshot[];
+  hydrationComplianceScore: number;
+  totalHydrationMl: number;
+  dailyTargetMl: number;
+  currentHeatStressLevel: HeatStressLevel;
+  currentWbgtIndex: number;
+  latestBpm: number;
+  latestSpO2: number;
+  reminderState: HydrationReminder | null;
+}
+
+export interface BpmPeak {
+  timestamp: string;
+  bpm: number;
+  heatStressLevel: HeatStressLevel;
+}
+
+export interface HeatStressPeriod {
+  startTime: string;
+  endTime: string;
+  level: HeatStressLevel;
+  peakWbgt: number;
+}
+
+export interface WellnessReport {
+  deviceId: string;
+  attendeeId?: string;
+  eventStart: string;
+  eventEnd: string;
+  generatedAt: string;
+  bpmPeaks: BpmPeak[];
+  heatStressPeriods: HeatStressPeriod[];
+  hydrationScore: number;
+  totalHydrationMl: number;
+  hydrationLogs: HydrationLogEntry[];
+  alertHistory: string[];
+  averageBpm: number;
+  averageSpO2: number;
+  maxHeatStressLevel: HeatStressLevel;
+}
+
+// Attendee wellness state used in live simulation
+export interface AttendeeWellnessState {
+  deviceId: string;
+  attendeeId: string;
+  name: string;
+  zone: string;
+  bpm: number;
+  bodyTemperature: number;
+  spO2: number;
+  wbgtIndex: number;
+  heatStressLevel: HeatStressLevel;
+  bpmHistory: number[];      // last 10 readings for gradient
+  hydrationMl: number;       // today's total
+  lastReminder: string;      // ISO time
+  nextReminderAt: string;    // ISO time
+  reminderInterval: number;  // minutes
+  battery: number;
+}
+

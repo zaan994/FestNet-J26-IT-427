@@ -22,7 +22,6 @@ export const App: React.FC = () => {
     const interval = setInterval(() => {
       setVitals(prev =>
         prev.map(v => {
-          // slight fluctuation in heart rate
           const deltaHR = Math.floor(Math.random() * 5) - 2;
           const newHR = Math.max(60, Math.min(180, v.heartRate + deltaHR));
           return {
@@ -129,7 +128,12 @@ export const App: React.FC = () => {
           onSimulateSOS={handleSimulateSOS}
         />
       )}
-      {activeTab === 'heat' && <HeatWellnessPage zones={zones} />}
+      {activeTab === 'heat' && (
+        <HeatWellnessPage
+          zones={zones}
+          onNavigateTab={setActiveTab}
+        />
+      )}
       {activeTab === 'responders' && <ResponderPage responders={responders} />}
       {activeTab === 'reports' && <ReportsPage />}
     </DashboardLayout>
