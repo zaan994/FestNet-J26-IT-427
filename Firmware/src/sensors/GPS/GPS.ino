@@ -18,11 +18,10 @@ char BACKEND_URL[100];
 // GPS Indoor / Fallback Test Coordinates
 // ==========================================
 // When indoors, GPS modules cannot receive satellite signals.
-// In that case, the ESP32 transmits these coordinates.
-// You can customize these to your current location (e.g. from Google Maps):
-const double FALLBACK_LAT = 7.119075;
-const double FALLBACK_LNG = 80.047517;
-const double FALLBACK_ALTITUDE = 55.0;
+// In that case, the ESP32 transmits these coordinates (or last known GPS fix).
+const double FALLBACK_LAT = 6.903272;
+const double FALLBACK_LNG = 79.958359;
+const double FALLBACK_ALTITUDE = 23.0;
 
 // Unique Wearable Device Identifier
 const char *DEVICE_ID = "BAND-ESP32-001";
@@ -181,12 +180,17 @@ void loop() {
 }
 
 void sendTelemetryToBackend() {
-  // Read GPS metrics
-  double lat = FALLBACK_LAT;
-  double lng = FALLBACK_LNG;
+  // Retain last known position when stepping indoors
+  static double lastKnownLat = FALLBACK_LAT;
+  static double lastKnownLng = FALLBACK_LNG;
+  static double lastKnownAlt = FALLBACK_ALTITUDE;
+  static bool hasEverHadFix = false;
+
+  double lat = lastKnownLat;
+  double lng = lastKnownLng;
   double speedKmH = 0.0;
   double headingDeg = 0.0;
-  double altitudeM = FALLBACK_ALTITUDE;
+  double altitudeM = lastKnownAlt;
   int satellites = 0;
   bool hasValidFix = false;
 
@@ -198,6 +202,13 @@ void sendTelemetryToBackend() {
     altitudeM = gps.altitude.meters();
     satellites = gps.satellites.value();
     hasValidFix = true;
+    hasEverHadFix = true;
+    lastKnownLat = lat;
+    lastKnownLng = lng;
+    lastKnownAlt = altitudeM;
+  } else {
+    satellites = gps.satellites.isValid() ? gps.satellites.value() : 0;
+    hasValidFix = false;
   }
 
   // Construct JSON payload
@@ -217,13 +228,13 @@ void sendTelemetryToBackend() {
   if (hasValidFix) {
     Serial.printf(" GPS:OK (%d sats, Lat:%.6f, Lng:%.6f)\n", satellites, lat, lng);
   } else {
-    Serial.println(" GPS:Fallback (Indoor mode - no satellite lock)");
+    Serial.printf(" GPS:Indoor (%s)\n", hasEverHadFix ? "Retaining Last Known Fix" : "Fallback");
     Serial.printf("      Coordinates sent: %.6f, %.6f\n", lat, lng);
     if (gps.charsProcessed() == 0) {
       Serial.println("      [!] Warning: 0 bytes received from GPS module.");
       Serial.println("          Check wiring: ESP32 Pin 16 (RX) -> GPS TX | Pin 17 (TX) -> GPS RX");
     } else {
-      Serial.printf("      [i] GPS module active (chars: %lu). Waiting for satellites...\n", gps.charsProcessed());
+      Serial.printf("      [i] GPS module active (chars: %lu). Visible sats: %d\n", gps.charsProcessed(), satellites);
       Serial.println("          Move near a window or outdoors to acquire satellite lock.");
     }
   }

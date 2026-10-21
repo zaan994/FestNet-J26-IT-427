@@ -1,15 +1,16 @@
 import React from 'react';
 import { EventZone, CrowdMetric } from '../../../types';
-import { Compass, Gauge, Users, TrendingUp, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Compass, Gauge, Users, TrendingUp, ShieldAlert, AlertTriangle, Trash2 } from 'lucide-react';
 import { CROWD_STATUS_COLORS } from '../constants/crowdConstants';
 import styles from '../styles/CrowdMonitoring.module.css';
 
 interface ZoneMetricCardProps {
   zone: EventZone;
   metric?: CrowdMetric;
+  onDelete?: () => void;
 }
 
-export const ZoneMetricCard: React.FC<ZoneMetricCardProps> = ({ zone, metric }) => {
+export const ZoneMetricCard: React.FC<ZoneMetricCardProps> = ({ zone, metric, onDelete }) => {
   const isSurge = metric?.status === 'CRITICAL_SURGE';
   const isElevated = metric?.status === 'ELEVATED_FLOW';
   const isCoordinated = metric?.status === 'COORDINATED_FLOW';
@@ -43,8 +44,6 @@ export const ZoneMetricCard: React.FC<ZoneMetricCardProps> = ({ zone, metric }) 
     color: statusColor.text,
   });
 
-  const occupancy = Math.round(((metric?.deviceCount || 0) / zone.capacity) * 100);
-
   return (
     <div className={getCardClass()}>
       {/* Top Border Indicator */}
@@ -60,9 +59,33 @@ export const ZoneMetricCard: React.FC<ZoneMetricCardProps> = ({ zone, metric }) 
           <span className={styles.zoneType}>Type: {zone.type}</span>
         </div>
 
-        <span className={styles.zoneBadge} style={getBadgeStyle()}>
-          {metric?.status || 'NORMAL_STATIC'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={styles.zoneBadge} style={getBadgeStyle()}>
+            {metric?.status || 'NORMAL_STATIC'}
+          </span>
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              title="Delete this zone"
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                borderRadius: '6px',
+                padding: '4px 6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Metrics Grid */}

@@ -13,6 +13,7 @@ interface CrowdMapProps {
   onAddVertex: (point: GeoPoint) => void;
   selectedZoneId?: string | null;
   onSelectZone: (zoneId: string) => void;
+  onDeleteZone?: (zoneId: string) => void;
   focusTarget?: [number, number] | null;
 }
 
@@ -157,6 +158,7 @@ export const CrowdMap: React.FC<CrowdMapProps> = ({
   onAddVertex,
   selectedZoneId,
   onSelectZone,
+  onDeleteZone,
   focusTarget,
 }) => {
   // Center around event location
@@ -358,6 +360,25 @@ export const CrowdMap: React.FC<CrowdMapProps> = ({
                         </>
                       )}
                     </div>
+                    {onDeleteZone && (
+                      <button
+                        onClick={() => onDeleteZone(zone.id)}
+                        style={{
+                          marginTop: '8px',
+                          padding: '4px 8px',
+                          fontSize: '0.75rem',
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: '4px',
+                          backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          width: '100%',
+                        }}
+                      >
+                        🗑️ Delete Zone
+                      </button>
+                    )}
                   </div>
                 </Popup>
               </Polygon>

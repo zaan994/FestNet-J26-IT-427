@@ -102,6 +102,18 @@ export const CrowdMonitoringPage: React.FC = () => {
     }
   };
 
+  const handleDeleteZone = async (zoneId: string) => {
+    if (window.confirm('Are you sure you want to delete this zone?')) {
+      try {
+        await crowdApi.deleteZone(zoneId);
+        setZones((prev) => prev.filter((z) => z.id !== zoneId));
+        setMetrics((prev) => prev.filter((m) => m.zoneId !== zoneId));
+      } catch (err) {
+        console.error('Failed to delete zone:', err);
+      }
+    }
+  };
+
   const handleCancelDrawing = () => {
     setIsDrawingMode(false);
     setDrawingVertices([]);
@@ -378,6 +390,7 @@ export const CrowdMonitoringPage: React.FC = () => {
           onAddVertex={handleAddVertex}
           selectedZoneId={selectedZoneId}
           onSelectZone={setSelectedZoneId}
+          onDeleteZone={handleDeleteZone}
           focusTarget={focusTarget}
         />
       </div>
@@ -388,7 +401,39 @@ export const CrowdMonitoringPage: React.FC = () => {
           Zone Crowd-Flow & Vector Analysis Matrix
         </h3>
 
-        <div className={styles.zoneGrid}>
+        {zones.length === 0 ? (
+          <div style={{
+            padding: '2.5rem 1.5rem',
+            textAlign: 'center',
+            backgroundColor: 'rgba(255, 255, 255, 0.02)',
+            borderRadius: '12px',
+            border: '1px dashed rgba(255, 255, 255, 0.15)',
+            color: '#94a3b8',
+          }}>
+            <p style={{ margin: '0 0 0.5rem', fontWeight: 700, fontSize: '1rem', color: '#ffffff' }}>
+              No Event Zones Configured
+            </p>
+            <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: '#64748b' }}>
+              Create dynamic polygon boundaries anywhere on the map around your venue, stage, or entrances.
+            </p>
+            <button
+              onClick={() => setIsDrawingMode(true)}
+              style={{
+                padding: '8px 18px',
+                borderRadius: '8px',
+                backgroundColor: '#8b5cf6',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+              }}
+            >
+              ✏️ Draw Your First Zone
+            </button>
+          </div>
+        ) : (
+          <div className={styles.zoneGrid}>
           {zones.map((zone) => {
             const metric = metrics.find((m) => m.zoneId === zone.id);
             return (
@@ -396,10 +441,12 @@ export const CrowdMonitoringPage: React.FC = () => {
                 key={zone.id}
                 zone={zone}
                 metric={metric}
+                onDelete={() => handleDeleteZone(zone.id)}
               />
             );
           })}
         </div>
+        )} 
       </div>
 
       {/* Zone Configuration Modal */}
